@@ -6,6 +6,7 @@ import { personaById } from '../data/personas.js';
 import { explainMove, explainThreat } from '../core/explain.js';
 import { moveAccuracy, GRADE_LABEL } from '../core/classify.js';
 import { otherColor } from '../core/rules.js';
+import { hangingPieces, PIECE_NAME } from '../core/tactics.js';
 import { h } from '../ui/dom.js';
 
 export const TRAINING_LEVELS = [
@@ -98,8 +99,17 @@ export function createTrainingSession({ level = 'amateur', playerColor = 'w', fe
     let t = null;
     try { t = await analyzer.analyzeThreat({ fen }); } catch { return; }
     if (destroyed || plies() !== ply || rules.fen() !== fen || rules.status().over) return;
-    const explained = explainThreat({ fen, threat: t, level: levelInfo.id, opponentColor: botColor });
-    if (!explained) return;
+    let explained = explainThreat({ fen, threat: t, level: levelInfo.id, opponentColor: botColor });
+    if (!explained) {
+      // No engine-level threat: still point out a piece left completely undefended and attacked.
+      const loose = hangingPieces(rules, playerColor).filter((p) => p.type !== 'p');
+      if (!loose.length) return;
+      const p = loose[0];
+      explained = {
+        text: `Careful: your ${PIECE_NAME[p.type]} on ${p.square} is attacked and nothing defends it.`,
+        arrow: null,
+      };
+    }
     threat = { ...explained, ply, fen };
     coachSays(explained.text);
     bot.emit('change', { action: 'threat' });
@@ -142,6 +152,12 @@ export function createTrainingSession({ level = 'amateur', playerColor = 'w', fe
     statusNote: () => (decision ? 'try that move again, or continue the game'
       : pendingPly ? 'coach is looking at your move…' : bot.statusNote()),
     awaitingDecision: () => Boolean(decision),
+    // Status banner while paused: talk about the player's move, not whose turn it is.
+    banner() {
+      if (!decision) return null;
+      const f = feedback.get(decision.ply);
+      return f ? `${f.san} was a ${f.label.toLowerCase()} — try again or continue.` : null;
+    },
     continueGame: resolveDecision,
 
     // Board annotations, only on the position they were made for: the explained move's arrows
@@ -150,7 +166,7 @@ export function createTrainingSession({ level = 'amateur', playerColor = 'w', fe
       const out = [];
       const latest = feedback.get(plies());
       if (latest && latest.fen === rules.fen()) out.push(...latest.arrows);
-      if (here(threat)) out.push(threat.arrow);
+      if (here(threat) && threat.arrow) out.push(threat.arrow);
       if (hint?.stage === 2 && here(hint)) out.push({ from: hint.move.slice(0, 2), to: hint.move.slice(2, 4), type: 'info' });
       return out;
     },

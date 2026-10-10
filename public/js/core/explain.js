@@ -33,7 +33,8 @@ function sanOf(fen, uci) {
 }
 
 // What a candidate move achieves, as a verb phrase ("wins a knight", "forks the king and rook").
-function describeIdea(fen, line, level) {
+// swingCp: how much better the best move is than the one played (caps "wins a pawn" claims).
+function describeIdea(fen, line, level, swingCp = 0) {
   const uci = line.pv[0];
   if (line.score?.mate > 0) return line.score.mate === 1 ? 'is checkmate' : `forces checkmate in ${line.score.mate}`;
   const mover = createGame({ fen }).turn();
@@ -44,7 +45,7 @@ function describeIdea(fen, line, level) {
   const fork = forkTargets(after, r.to);
   if (fork.length >= 2) return level === 'novice' ? `attacks ${listPieces(fork)} at the same time` : `forks ${listPieces(fork)}`;
   if (gain >= 3) return `wins material (about ${gain} pawns' worth)`;
-  if (gain >= 1) return 'wins a pawn';
+  if (gain >= 1) return swingCp < 200 ? 'wins a pawn' : 'wins material';
   if (r.captured) return `takes the ${PIECE_NAME[r.captured]}`;
   if (r.san.includes('+')) return 'gives check and keeps the initiative';
   if (r.flags.includes('k') || r.flags.includes('q')) return 'castles your king to safety';
@@ -102,8 +103,9 @@ export function explainMove({ move, analysis, level = 'amateur', history = [move
   const mateAvailable = analysis.bestLine?.score?.mate > 0;
 
   // What was better.
-  if (!analysis.isBest && (BAD.has(grade) || grade === 'good')) {
-    const idea = describeIdea(move.before, analysis.bestLine, level);
+  // Beginners only hear about better moves when theirs was actually a slip.
+  if (!analysis.isBest && (BAD.has(grade) || (grade === 'good' && numbers))) {
+    const idea = describeIdea(move.before, analysis.bestLine, level, analysis.bestCp - analysis.playedCp);
     let text = `Better was ${bestSan}${idea ? `, which ${idea}` : ''}.`;
     if (level === 'grandmaster') text += ` Main line: ${sanLine(move.before, analysis.bestLine.pv, 6).join(' ')}`;
     else if (level === 'pro') text += ` (${forYou(analysis.bestCp)})`;
