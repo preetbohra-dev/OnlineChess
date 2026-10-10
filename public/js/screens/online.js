@@ -14,6 +14,7 @@ const ERRORS = {
   room_not_found: 'That room does not exist any more. Rooms close after a while without players.',
   room_full: 'That room already has two players.',
   server_full: 'The server is busy right now. Please try again in a minute.',
+  too_many_rooms: 'You have opened a lot of rooms recently. Finish or leave one, or try again later.',
   bad_token: 'Your seat in this room has expired.',
 };
 
@@ -113,8 +114,21 @@ export function renderRoom(outlet, { params, query }) {
     }
     const token = readToken(roomId);
     if (token) client.send({ type: 'resume', room: roomId, token });
-    else showMessage('Enter your name to join this game.', { join: true });
+    else client.send({ type: 'peek', room: roomId });
   }
+
+  client.on('room', (m) => {
+    if (screen) return;
+    if (!m.exists) showMessage(ERRORS.room_not_found);
+    else if (m.full) showMessage(ERRORS.room_full);
+    else showMessage('Enter your name to join this game.', { join: true });
+  });
+  client.on('replaced', () => {
+    screen?.destroy();
+    screen = null;
+    outlet.replaceChildren(status);
+    showMessage('This game is now open in another tab or window.');
+  });
 
   client.on('open', hello);
   client.on('joined', (m) => {

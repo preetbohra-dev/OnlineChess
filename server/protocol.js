@@ -33,6 +33,7 @@ const SCHEMAS = {
   rematch: {},
   emote: { id: (v) => Object.hasOwn(EMOTES, v) },
   ping: { t: (v) => typeof v === 'number' && Number.isFinite(v) },
+  peek: { room: (v) => typeof v === 'string' && ROOM.test(v) },
 };
 
 // raw: string | Buffer -> { ok: true, msg } | { ok: false, code }

@@ -80,6 +80,9 @@ export function createOnlineSession({ client, roomId }) {
       if (!lastConnected[opp] && next.players[opp].connected) feed('system', `${next.players[opp].name} is back.`);
     }
     if (!first && !previous.players[opp] && next.players[opp]) feed('system', `${next.players[opp].name} joined. White moves first — good luck!`);
+    if (!first && previous.drawOffer && !next.drawOffer && !next.status.over && next.ply === previous.ply) {
+      feed('system', previous.drawOffer === next.you ? 'Your draw offer was declined.' : 'You declined the draw offer.');
+    }
     if (!first && previous.ply > 0 && next.ply === 0 && previous.status.over) feed('system', `Rematch! You play ${COLOR_NAME[next.you]} this time.`);
     lastConnected = { w: next.players.w?.connected ?? true, b: next.players.b?.connected ?? true };
     abandonDeadline = next.abandon ? performance.now() + next.abandon.claimableInMs : null;

@@ -126,3 +126,36 @@ test('timed online game shows server clocks', async ({ browser, page }) => {
   await expect(guest.getByTestId('clock-b')).toHaveText(/^2:5\d|3:00$/);
   await guestContext.close();
 });
+
+test('a room that does not exist is reported before asking for a name', async ({ page }) => {
+  await page.goto('/#/room/ZZZZZZ');
+  await expect(page.getByTestId('room-status')).toContainText('does not exist');
+  await expect(page.getByTestId('btn-join')).toHaveCount(0);
+});
+
+test('#/play/online opens the room setup', async ({ page }) => {
+  await page.goto('/#/play/online');
+  await expect(page.getByTestId('btn-create-room')).toBeVisible();
+});
+
+test('the offerer hears when a draw is declined', async ({ browser, page }) => {
+  const { guest, guestContext } = await openRoom(browser, page);
+  await page.getByTestId('btn-offer-draw').click();
+  await guest.getByTestId('btn-decline-draw').click();
+  await expect(page.locator('[data-kind="system"]').last()).toContainText('Your draw offer was declined.');
+  await guestContext.close();
+});
+
+test('opening the same seat in a second tab tells the first tab', async ({ browser, page }) => {
+  const { guest, guestContext, link } = await openRoom(browser, page);
+  // A duplicated tab inherits sessionStorage (and so the seat token); copy it like the browser does.
+  const room = link.split('/room/')[1];
+  const token = await guest.evaluate((r) => sessionStorage.getItem(`oc.room.${r}`), room);
+  const secondTab = await guestContext.newPage();
+  await secondTab.goto('/');
+  await secondTab.evaluate(([r, t]) => sessionStorage.setItem(`oc.room.${r}`, t), [room, token]);
+  await secondTab.goto(link);
+  await expect(secondTab.getByTestId('game')).toBeVisible();
+  await expect(guest.getByTestId('room-status')).toContainText('open in another tab');
+  await guestContext.close();
+});

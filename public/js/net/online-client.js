@@ -31,6 +31,7 @@ export function createOnlineClient({ url = socketUrl(), maxBackoffMs = 8000 } = 
     };
     ws.onclose = (event) => {
       events.emit('close', { code: event.code });
+      if (event.code === 4000) events.emit('replaced', {});
       // 4000: this seat was taken over by another tab — don't fight over it.
       if (closedByUser || event.code === 4000) return;
       const delay = Math.min(maxBackoffMs, 500 * 2 ** attempts++);
