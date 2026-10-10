@@ -157,13 +157,31 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - A second-tab takeover is announced on the old tab.
   - `#/play/online` opens the setup.
 
+### Slice 7: Training — lessons (Novice, Amateur) and the rules handbook
+
+- **Hub:** Training → `opt-lessons` → `#/learn`. Tracks `track-<level>`, lesson cards `lesson-<id>` (class `done` once completed; progress saved in localStorage).
+- **Lesson player:** `#/learn/<id>`.
+  - Read lessons step through text and diagrams (`lesson-text`, `btn-prev`, `btn-next`, then `btn-next-lesson`).
+  - Puzzles (`lesson-feedback`, `btn-lesson-hint`, `lesson-hint`, `btn-lesson-reset`) explain wrong moves, script the opponent's replies, and explain stalemate in mate puzzles.
+- **Rules handbook:** `opt-rules` → `#/rules`, one section per rule (`rule-<id>`).
+
+### Slice 8: Training — Pro and Grand Master tracks, playouts against Stockfish
+
+- **New tracks:** `track-pro`, `track-grandmaster`.
+  - Pro: opening principles, K+Q mate, K+R mate, the opposition, the rule of the square, Lucena, Philidor.
+  - Grand Master: candidate moves, Philidor's legacy (smothered mate), the Greek gift, the Saavedra study (underpromotion), the Réti study.
+- **Playout lessons** (card label "vs Stockfish"): the player plays a position out against full-strength Stockfish on its own worker.
+  - Goals: `mate` (checkmate within N moves), `promote` (promote and keep the new piece through the reply), `hold` (survive N moves; an enemy promotion must be answered at once).
+  - `playout-moves` shows "Moves left: x of N". `lesson-feedback` reports the result; the panel has `data-state` (playing/thinking/won/lost) and `data-fen`.
+  - Hint: the first press shows text, the second also highlights the piece Stockfish would move.
+  - Restart resets the position and the budget. Leaving the lesson stops the engine (`__oc.engines`).
+  - Test hook: `?engine=fast` (depth 6).
+- Every playout is validated in `tests/engine`: Stockfish playing the player's side reaches the goal against Stockfish.
+
 ## Not built yet (score N/A)
 
-- Slices 7-9: lessons, openings trainer, rules handbook.
-- Slice 10: retention.
-- Slice 5: online play.
-- Slices 6-9: training.
-- Slice 10: retention.
+- Slice 9: openings trainer, opening detection, richer bot opening books.
+- Slice 10: retention (profile, ranks, records, achievements, daily puzzle, home dashboard).
 
 ## How to run for evaluation
 

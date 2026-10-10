@@ -166,7 +166,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/train$/, title: 'Training Mode', render: renderTrainMenu },
   { pattern: /^\/train\/coach$/, title: 'Coached game', render: renderCoachSetup },
   { pattern: /^\/learn$/, title: 'Lessons', render: renderLearnHub },
-  { pattern: /^\/learn\/(?<id>[a-z0-9-]{1,60})$/, title: 'Lesson', render: renderLesson },
+  { pattern: /^\/learn\/(?<id>[a-z0-9-]{1,60})$/, title: 'Lesson', render: (outlet, ctx) => renderLesson(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/rules$/, title: 'Rules of chess', render: renderRules },
   { pattern: /^\/train\/coach\/play$/, title: 'Coached game', render: renderCoachGame },
   { pattern: /^$/, notFound: true, title: 'Not found', render: renderNotFound },
