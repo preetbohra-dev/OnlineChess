@@ -114,6 +114,8 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   const reviewBar = h('div', { class: 'review-bar', hidden: true }, reviewLabel,
     h('button', { class: 'btn btn-small', type: 'button', testid: 'btn-live', onClick: () => goLive() }, 'Back to live ▸'));
   const feed = h('ul', { class: 'feed', testid: 'feed', 'aria-live': 'polite', 'aria-label': 'Game messages' });
+  // Mode-specific controls (online: invite link, emotes, rematch) rendered by the session.
+  const extras = h('div', { class: 'session-extras', testid: 'session-extras' });
 
   const button = (testid, label, icon, onClick, title) =>
     h('button', { class: 'btn btn-control', type: 'button', testid, title: title ?? label, onClick }, h('span', { class: 'icon', 'aria-hidden': 'true' }, icon), h('span', { class: 'label' }, label));
@@ -137,6 +139,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
       h('header', { class: 'game-side-head' }, h('h1', { class: 'game-title' }, session.title), banner),
       drawBar,
       h('div', { class: 'moves-panel' }, moveList, reviewBar),
+      extras,
       feed,
       controls));
   container.append(root);
@@ -199,9 +202,12 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   }
 
   // Clock loop: refresh the displays, flag a player whose time ran out, tick in the last 10 s.
+  let ticks = 0;
   function tick() {
+    if (destroyed) return;
+    if (++ticks % 10 === 0 && session.needsTick?.()) session.renderExtras?.(extras);
     const clock = session.clock;
-    if (destroyed || !clock) return;
+    if (!clock) return;
     const flagged = rules.status().over ? null : clock.flagged();
     if (flagged) {
       session.flag(flagged);
@@ -218,7 +224,8 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
       playSound('lowtime');
     }
   }
-  const tickTimer = session.clock ? setInterval(tick, 100) : null;
+  // Always ticking: an online game's clock only arrives with the first server message.
+  const tickTimer = setInterval(tick, 100);
 
   // Pass and play: turn the board toward the player to move — once per move, so a manual Flip
   // sticks until the next move.
@@ -309,6 +316,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     renderCards(history, status);
     renderMoveList(history);
     renderDrawBar(status);
+    session.renderExtras?.(extras);
     reviewBar.hidden = reviewPly === null;
     reviewLabel.textContent = reviewPly === null ? '' : reviewPly === 0 ? 'Viewing the starting position' : `Viewing move ${reviewPly} of ${history.length}`;
 

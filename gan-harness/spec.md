@@ -49,9 +49,84 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - `window.__oc.soundsPlayed` and `window.__oc.soundEnabled` are exposed for tests.
 - Auto-flip: in pass and play, the board turns toward the player to move. `game[data-orientation]` shows which side is at the bottom.
 
+### Slice 3: against the computer (Stockfish 19 lite WASM, 5 personas)
+
+- Normal Mode lists 5 opponents (`opt-bot-novice|amateur|pro|grandmaster|beyond`). Each opens a setup screen at `#/play/bot/new?persona=` with:
+  - persona cards `persona-<id>`
+  - colour choice `color-w|random|b`
+  - time-control chips
+  - `btn-start`
+- Game: `#/play/bot?persona=&color=&tc=`. Test hooks:
+  - `engine=fast` caps search at 100 ms or depth 8
+  - `seed=N` makes the Novice's random choices reproducible
+- Personas:
+
+  | Persona | Strength |
+  |---|---|
+  | Pip the Pawn (Novice) | Skill 0, depth 2, MultiPV 4, deliberately weaker picks |
+  | Rookie Rex (Amateur) | Elo 1400, 300 ms |
+  | Professor Hoot (Pro) | Elo 1900, 600 ms |
+  | Magnus the Wizard (Grand Master) | Elo 2600, 1.2 s |
+  | Deep Void (Beyond Humans) | Full strength, 3 s |
+
+  - Thinking time is capped at 1/30 of the bot's remaining clock.
+  - Personas that use the opening book play it for 4–14 plies.
+- The bot greets you in the feed (`feed-item[data-kind=bot]`) and reacts to wins, losses and draws.
+- Draw offers: the bot answers itself. It accepts only when it stands clearly worse or late in a dead-level game.
+- When the bot stands worse, it claims any draw that is available.
+- The banner shows "<persona> is thinking…" while it searches. You cannot move during that time or move its pieces.
+- The engine runs in a Web Worker (`/vendor/stockfish/stockfish-19-lite-single.js` + `.wasm` served as `application/wasm`). It is terminated when you leave the route; `window.__oc.engines` counts live engines.
+- The home page credits Stockfish (GPL v3, `/vendor/stockfish/Copying.txt`).
+
+## Ports
+
+- **Never use ports 3000 or 3200**:
+  - 3000 is another live app (Tambola).
+  - 3200 is the live chess site (launchd).
+- Never `pkill`/`killall` node processes. Kill only the PID you started.
+
+### Slice 4: move grading and taunts
+
+- **Grading:** a second, full-strength Stockfish instance (only created when Settings → "Computer trash talk" is on) grades each of your moves. Grades use lichess win-chance thresholds:
+  - inaccuracy at a drop of ≥ 0.1
+  - mistake at ≥ 0.2
+  - blunder at ≥ 0.3
+  - "great" when the move was the only good one
+- **Taunts:** `feed-item[data-kind=taunt]`, one voice per persona.
+- **Triggers:**
+  - hung piece: names the piece and square, only when material really drops
+  - allowed mate
+  - missed mate-in-1: names the move
+  - blunder, mistake, sometimes an inaccuracy
+  - grudging praise for great non-forced moves
+  - the bot giving check
+- **Pacing:** minor taunts have a cooldown, lines don't repeat within five, and blunders always get a reaction.
+- **Never stale:** no taunt appears in a new game, after a later move, or after the game ends.
+
+### Slice 5: online play via share link (server-authoritative)
+
+- **Creating a room:**
+  - Normal Mode → `opt-online` → `#/play/online/new`, with a name field (`online-name`), colour and time control.
+  - `btn-create-room` opens `#/room/<ID>`. While waiting, it shows an invite link (`room-link`, `btn-copy-link`).
+- **Joining:** the friend opens the link, enters a name and clicks `btn-join`.
+- **The server owns everything:**
+  - Rules: moves are validated with the shared rules module and carry the expected ply.
+  - Clocks: the flag is checked by a timer and before every move.
+  - Draws: offers and answers, plus threefold/fifty claims, which are allowed only on your own turn.
+  - Resign, and rematch (`btn-rematch`, colours swap).
+  - Emotes (`emote-*`) with a cooldown.
+  - Abandonment: claim the win after a 60 s disconnect (`btn-claim-abandon`).
+- **Reload/reconnect:** resumes the seat via a 128-bit token in sessionStorage. A second tab replaces the first.
+- **WebSocket `/ws` hardening:**
+  - Same-origin Origin check; 4 KB max frame.
+  - Strict JSON schema (unknown types or fields rejected; names `[\p{L}\p{N} _'-]{1,20}`).
+  - 20 msg/s token bucket (close 1008); 8 connections per address (CF-Connecting-IP trusted only from loopback); 500 rooms max.
+  - Idle/finished room GC and heartbeat pings. Errors never include stack traces.
+
 ## Not built yet (score N/A)
 
-- Slices 3-4: computer personas and taunts.
+- Slices 6-9: training (coach, lessons, openings, rules handbook).
+- Slice 10: retention.
 - Slice 5: online play.
 - Slices 6-9: training.
 - Slice 10: retention.
