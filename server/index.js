@@ -24,7 +24,9 @@ export function createAppServer({ publicDir = DEFAULT_PUBLIC } = {}) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const port = Number(process.env.PORT) || 3000;
+  // 3200, not 3000: other local apps (e.g. OnlineTambola) already use 3000, and on macOS a
+  // 127.0.0.1 listener silently shadows a wildcard listener on the same port.
+  const port = Number(process.env.PORT) || 3200;
   const host = process.env.HOST || '127.0.0.1';
   const app = createAppServer();
   app.http.listen(port, host, () => {

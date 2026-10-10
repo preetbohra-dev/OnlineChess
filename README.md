@@ -21,7 +21,7 @@ Requires Node.js 22 or newer.
 
 ```sh
 npm install      # also copies browser dependencies into public/vendor
-npm start        # http://localhost:3000
+npm start        # http://localhost:3200
 ```
 
 The app must be served over HTTP (`npm start`). Opening `public/index.html` directly from disk does not work.
