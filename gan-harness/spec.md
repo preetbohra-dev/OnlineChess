@@ -123,9 +123,43 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - 20 msg/s token bucket (close 1008); 8 connections per address (CF-Connecting-IP trusted only from loopback); 500 rooms max.
   - Idle/finished room GC and heartbeat pings. Errors never include stack traces.
 
+### Slice 6: Training — coached game
+
+- **Setup:** Training (`#/train`) → `opt-coach` → `#/train/coach`. Pick a level (`level-novice|amateur|pro|grandmaster`) and a colour (`color-*`), then `btn-start`.
+- **Game:** `#/train/coach/play?level=&color=`. The test hooks `engine=fast`, `seed`, `fen` are supported.
+- **Opponent:** the persona matching the level. A separate full-strength coach engine analyses every player move.
+- **Coach panel** (`coach-panel`):
+  - a grade badge (`coach-grade`, with `data-grade` set to best/great/excellent/good/inaccuracy/mistake/blunder)
+  - a headline
+  - points (`li[data-kind]`):
+    - better: the best move plus why
+    - missed: a missed mate
+    - allowed: the opponent's refutation and what it wins
+    - warning: a piece left hanging
+    - tip/praise: opening principles, Novice and Amateur only
+- **Board arrows:**
+  - green: the better move
+  - red: the refutation
+  - orange: the opponent's threat after their move (`coach-threat`)
+  - blue: the hint
+- **Explanations by level:**
+  - Novice: plain words, no numbers
+  - Amateur: names tactics
+  - Pro: adds evaluations
+  - Grandmaster: evaluations plus the engine's main line
+- **Controls:**
+  - `btn-hint`: the first press highlights a piece, the second shows the move
+  - `btn-takeback`: undoes your move and the reply, and drops their feedback
+- **Game-over summary:** your accuracy (`coach-accuracy`, lichess formula) and counts per grade.
+- **Online fixes since iteration 4:**
+  - The join page says up front when a room is missing or full.
+  - A declined draw is announced.
+  - A second-tab takeover is announced on the old tab.
+  - `#/play/online` opens the setup.
+
 ## Not built yet (score N/A)
 
-- Slices 6-9: training (coach, lessons, openings, rules handbook).
+- Slices 7-9: lessons, openings trainer, rules handbook.
 - Slice 10: retention.
 - Slice 5: online play.
 - Slices 6-9: training.
@@ -139,5 +173,5 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - Ad-hoc scripts: `chromium.launch({ channel: 'chrome' })`.
 - Existing checks:
   - `npm test` (unit + server)
-  - `PW_CHANNEL=chrome npx playwright test --workers=2` (e2e, desktop + Pixel 7)
+  - `PW_CHANNEL=chrome npm run test:e2e` (desktop then Pixel 7; running both projects in one invocation can hang Chrome)
 - Board squares are SVG `rect[data-square="e2"]`. Click the centre of the rect's bounding box. Pieces and markers ignore pointer events.
