@@ -11,7 +11,7 @@ test('lesson ids are unique and every lesson has the required fields', () => {
   assert.equal(new Set(ids).size, ids.length);
   for (const l of ALL_LESSONS) {
     for (const key of ['id', 'level', 'title', 'summary', 'type']) assert.ok(l[key], `${l.id} needs ${key}`);
-    assert.ok(['read', 'puzzle'].includes(l.type), l.id);
+    assert.ok(['read', 'puzzle', 'playout'].includes(l.type), l.id);
   }
 });
 
@@ -44,6 +44,25 @@ test('puzzles: legal start, legal solution, goal reached', () => {
     }
     if (l.goal === 'mate') assert.equal(game.status().reason, 'checkmate', `${l.id}: not mate`);
     if (l.goal === 'promote') assert.ok(game.history({ verbose: true }).some((m) => m.promotion), `${l.id}: no promotion`);
+  }
+});
+
+test('playouts: legal start, a goal, a move budget, hints', () => {
+  const playouts = ALL_LESSONS.filter((x) => x.type === 'playout');
+  assert.ok(playouts.length >= 4);
+  for (const l of playouts) {
+    assert.ok(isValidFen(l.fen), `${l.id}: bad FEN`);
+    assert.equal(createGame({ fen: l.fen }).status().over, false, `${l.id}: already over`);
+    assert.ok(['mate', 'promote', 'hold'].includes(l.goal), l.id);
+    assert.ok(Number.isInteger(l.moves) && l.moves > 0 && l.moves <= 40, `${l.id}: moves`);
+    for (const key of ['prompt', 'success']) assert.ok(l[key], `${l.id} needs ${key}`);
+    assert.ok(l.hints?.length, `${l.id} needs hints`);
+  }
+});
+
+test('every track has lessons, and Pro and Grand Master tracks exist', () => {
+  for (const level of ['novice', 'amateur', 'pro', 'grandmaster']) {
+    assert.ok(ALL_LESSONS.some((l) => l.level === level), level);
   }
 });
 

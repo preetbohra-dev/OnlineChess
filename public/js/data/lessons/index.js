@@ -1,10 +1,14 @@
-// All lessons by level. Later slices add Pro and Grand Master tracks.
+// All lessons by level.
 import { NOVICE_LESSONS } from './novice.js';
 import { AMATEUR_LESSONS } from './amateur.js';
+import { PRO_LESSONS } from './pro.js';
+import { GM_LESSONS } from './gm.js';
 
 export const LESSON_TRACKS = [
   { level: 'novice', label: 'Novice', blurb: 'How the game works: the pieces, special moves, check and checkmate.', lessons: NOVICE_LESSONS },
   { level: 'amateur', label: 'Amateur', blurb: 'Tactics that win games: forks, pins, skewers and mating patterns.', lessons: AMATEUR_LESSONS },
+  { level: 'pro', label: 'Pro', blurb: 'Endgames every strong player knows — played out against Stockfish.', lessons: PRO_LESSONS },
+  { level: 'grandmaster', label: 'Grand Master', blurb: 'Famous combinations and endgame studies.', lessons: GM_LESSONS },
 ];
 
 export const ALL_LESSONS = LESSON_TRACKS.flatMap((t) => t.lessons);
