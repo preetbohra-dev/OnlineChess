@@ -90,3 +90,9 @@ test('after a blunder, Continue lets the opponent punish it', async ({ page }) =
   await page.getByTestId('btn-continue').click({ timeout: 15_000 });
   await expect(page.getByTestId('move-item')).toHaveCount(2, { timeout: 15_000 });
 });
+
+test('the paused banner talks about your move, not whose turn it is', async ({ page }) => {
+  await openCoach(page, { level: 'amateur', color: 'b', fen: QUEEN_BLUNDER });
+  await move(page, 'd8', 'g5');
+  await expect(page.getByTestId('status-banner')).toHaveText('Qg5 was a blunder — try again or continue.', { timeout: 15_000 });
+});

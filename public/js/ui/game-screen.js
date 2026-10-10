@@ -315,9 +315,10 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     banner.classList.toggle('over', status.over);
     banner.classList.toggle('check', !status.over && rules.inCheck());
     const note = status.over ? '' : (session.statusNote?.() ?? '');
+    const custom = status.over ? null : session.banner?.();
     banner.textContent = status.over
       ? describeResult(status)
-      : `${COLOR_NAME[rules.turn()]} to move${rules.inCheck() ? ' — check!' : ''}${note ? ` · ${note}` : ''}`;
+      : custom ?? `${COLOR_NAME[rules.turn()]} to move${rules.inCheck() ? ' — check!' : ''}${note ? ` · ${note}` : ''}`;
 
     renderCards(history, status);
     renderMoveList(history);
