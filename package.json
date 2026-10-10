@@ -1,0 +1,26 @@
+{
+  "name": "online-chess",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Play, learn and train chess: local, online and against Stockfish personas, with a move-by-move coach.",
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test \"tests/{unit,server,content,engine}/**/*.test.js\"",
+    "test:e2e": "playwright test",
+    "vendor": "node scripts/vendor.mjs",
+    "postinstall": "node scripts/vendor.mjs"
+  },
+  "dependencies": {
+    "chess.js": "1.4.0",
+    "cm-chessboard": "8.15.3",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
