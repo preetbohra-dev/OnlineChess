@@ -9,6 +9,8 @@ export default defineConfig({
   // One retry absorbs the occasional hung Chrome launch on this machine; flaky tests are still reported.
   retries: 1,
   fullyParallel: true,
+  // More than two parallel Chrome instances (each running two Stockfish workers) hangs this machine.
+  workers: 2,
   reporter: [['list']],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

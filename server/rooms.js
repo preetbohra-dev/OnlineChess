@@ -236,12 +236,18 @@ export function createRoomManager({
       return undefined;
     },
 
+    // Lets the join page say "no such room" / "room is full" before asking for a name.
+    peek(conn, msg) {
+      const room = rooms.get(msg.room);
+      conn.send({ type: 'room', room: msg.room, exists: Boolean(room), full: Boolean(room?.seats.w && room?.seats.b) });
+    },
+
     ping(conn, msg) {
       conn.send({ type: 'pong', t: msg.t });
     },
   };
 
-  const ROOMLESS = new Set(['create', 'join', 'resume', 'ping']);
+  const ROOMLESS = new Set(['create', 'join', 'resume', 'ping', 'peek']);
 
   return {
     rooms,
@@ -250,7 +256,7 @@ export function createRoomManager({
     handle(conn, msg, ctx = {}) {
       const binding = seatsByConn.get(conn);
       if (ROOMLESS.has(msg.type)) {
-        if (binding && msg.type !== 'ping') return error(conn, 'already_in_room');
+        if (binding && msg.type !== 'ping' && msg.type !== 'peek') return error(conn, 'already_in_room');
         return handlers[msg.type](conn, msg, ctx);
       }
       if (!binding) return error(conn, 'not_in_room');

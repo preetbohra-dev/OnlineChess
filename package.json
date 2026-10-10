@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test \"tests/{unit,server,content,engine}/**/*.test.js\"",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=desktop && playwright test --project=mobile",
     "vendor": "node scripts/vendor.mjs",
     "postinstall": "node scripts/vendor.mjs"
   },
