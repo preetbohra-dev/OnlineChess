@@ -6,6 +6,7 @@ import { createEmitter } from '../core/events.js';
 import { attachClock } from './clocked.js';
 import { engineOptionsFor, searchFor, pickMove, scoreCp } from '../engine/personas.js';
 import { createBook, bookMove } from '../engine/book.js';
+import { linesFor } from '../data/repertoires.js';
 import { createRng, pick } from '../core/rng.js';
 import { START_FEN } from '../core/rules.js';
 import { createTaunter, tauntTriggerFor } from '../core/taunts.js';
@@ -34,7 +35,7 @@ export function createBotSession({
   const botColor = otherColor(playerColor);
   const events = createEmitter();
   const timing = attachClock(rules, timeControl, { now });
-  const book = startFen === START_FEN && persona.bookPlies ? createBook() : null;
+  const book = startFen === START_FEN && persona.bookPlies ? createBook(linesFor(persona.id)) : null;
   const clockNow = now ?? (() => performance.now());
   let thinking = false;
   let gen = 0;

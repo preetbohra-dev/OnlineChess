@@ -9,7 +9,7 @@ export const PERSONAS = [
     rating: '~600',
     tagline: 'Just hatched. Hangs pieces, cheers loudly.',
     strength: { skill: 0, depth: 2, multipv: 4, blunderRate: 0.35, randomRate: 0.08 },
-    bookPlies: 4,
+    bookPlies: 6,
     lines: {
       greeting: ['Hi hi! I just learned how the horsey moves. Be gentle!', 'Ooh, a new friend! Let\'s play!'],
       botWins: ['Wait… did I WIN? Somebody take a picture!', 'I won?! I\'m telling all the other pawns!'],
@@ -27,7 +27,7 @@ export const PERSONAS = [
     rating: '~1400',
     tagline: 'Loves a cheap trick and a loud roar.',
     strength: { limitElo: 1400, movetime: 300 },
-    bookPlies: 8,
+    bookPlies: 12,
     lines: {
       greeting: ['RAWR. I\'ve watched three whole chess videos. Prepare yourself.', 'Let\'s go! I\'ve got a trap or two up my tiny arms.'],
       botWins: ['Rex wins! RAWR! Run it back?', 'Rex wins again! Want another go?'],

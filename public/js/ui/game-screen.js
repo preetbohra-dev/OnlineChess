@@ -18,6 +18,7 @@
 //   resultTitle?(status)   custom game-over heading
 //   destroy()              release resources; the screen owns the session and calls it on teardown
 import { h, fill, pieceGlyph, COLOR_NAME } from './dom.js';
+import { detectOpening } from '../core/openings.js';
 import { BoardView } from './board-view.js';
 import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
@@ -108,6 +109,8 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   const topCard = playerCard();
   const bottomCard = playerCard();
   const banner = h('div', { class: 'status-banner', testid: 'status-banner', role: 'status', 'aria-live': 'polite' });
+  const openingBadge = h('p', { class: 'opening-badge', testid: 'opening-name', hidden: true });
+  let openingShown = null; // the last opening rendered, to skip redundant DOM work
   const drawBar = h('div', { class: 'draw-offer', testid: 'draw-offer', hidden: true });
   const moveList = h('ol', { class: 'move-list', testid: 'move-list', 'aria-label': 'Moves' });
   const reviewLabel = h('span', { class: 'review-label' });
@@ -139,7 +142,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   const root = h('section', { class: 'game', testid: 'game', 'aria-label': session.title },
     h('div', { class: 'game-board-col' }, topCard.el, boardHost, bottomCard.el),
     h('aside', { class: 'game-side' },
-      h('header', { class: 'game-side-head' }, h('h1', { class: 'game-title' }, session.title), banner),
+      h('header', { class: 'game-side-head' }, h('h1', { class: 'game-title' }, session.title), banner, openingBadge),
       drawBar,
       h('div', { class: 'moves-panel' }, moveList, reviewBar),
       extras,
@@ -163,7 +166,25 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   });
 
   function pgn() {
-    return rules.pgn({ White: session.players.w.name, Black: session.players.b.name });
+    const opening = detectOpening(rules.history({ verbose: true }));
+    return rules.pgn({
+      White: session.players.w.name,
+      Black: session.players.b.name,
+      ...(opening ? { ECO: opening.eco, Opening: opening.name } : {}),
+    });
+  }
+
+  // The opening reached so far; once the game is over it links to the trainer for it.
+  function renderOpening(history, status) {
+    const opening = detectOpening(history);
+    const key = opening ? `${opening.eco}|${opening.name}|${status.over}` : null;
+    if (key === openingShown) return;
+    openingShown = key;
+    openingBadge.hidden = !opening;
+    if (!opening) return openingBadge.replaceChildren();
+    fill(openingBadge,
+      h('span', {}, `${opening.eco} · ${opening.name}`),
+      status.over && opening.trainerId ? [' · ', h('a', { href: `#/openings/${opening.trainerId}`, testid: 'opening-learn' }, 'Learn this opening')] : null);
   }
 
   function addFeed(kind, text, { avatar } = {}) {
@@ -321,6 +342,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
       : custom ?? `${COLOR_NAME[rules.turn()]} to move${rules.inCheck() ? ' — check!' : ''}${note ? ` · ${note}` : ''}`;
 
     renderCards(history, status);
+    renderOpening(history, status);
     renderMoveList(history);
     renderDrawBar(status);
     session.renderExtras?.(extras);

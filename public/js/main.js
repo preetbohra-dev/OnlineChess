@@ -21,6 +21,7 @@ import { createAnalyzer } from './engine/analysis.js';
 import { renderOnlineNew, renderRoom } from './screens/online.js';
 import { renderCoachSetup } from './screens/coach-setup.js';
 import { renderLearnHub, renderLesson } from './screens/learn.js';
+import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
 
@@ -168,6 +169,8 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/learn$/, title: 'Lessons', render: renderLearnHub },
   { pattern: /^\/learn\/(?<id>[a-z0-9-]{1,60})$/, title: 'Lesson', render: (outlet, ctx) => renderLesson(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/rules$/, title: 'Rules of chess', render: renderRules },
+  { pattern: /^\/openings$/, title: 'Openings', render: renderOpeningsHub },
+  { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },
   { pattern: /^\/train\/coach\/play$/, title: 'Coached game', render: renderCoachGame },
   { pattern: /^$/, notFound: true, title: 'Not found', render: renderNotFound },
 ]);
