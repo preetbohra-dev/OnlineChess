@@ -42,6 +42,10 @@ test('puzzles: legal start, legal solution, goal reached', () => {
       for (const uci of alt) assert.equal(g.move(uci).ok, true, `${l.id}: alternative ${uci} illegal`);
       assert.equal(alt.length % 2, 1, `${l.id}: alternative must end with the player's move`);
     }
+    for (const [uci, text] of Object.entries(l.wrong ?? {})) {
+      assert.match(uci, /^[a-h][1-8][a-h][1-8][qrbn]?$/, `${l.id}: wrong-move key ${uci}`);
+      assert.ok(text.length > 10, `${l.id}: wrong-move text`);
+    }
     if (l.goal === 'mate') assert.equal(game.status().reason, 'checkmate', `${l.id}: not mate`);
     if (l.goal === 'promote') assert.ok(game.history({ verbose: true }).some((m) => m.promotion), `${l.id}: no promotion`);
   }

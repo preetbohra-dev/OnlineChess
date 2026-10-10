@@ -387,3 +387,20 @@ html { scroll-padding-top: 72px; }
 .rules-board { width: 220px; aspect-ratio: 1; border-radius: 6px; overflow: hidden; }
 .rules-practice { font-weight: 600; }
 @media (max-width: 700px) { .rules-section { grid-template-columns: minmax(0, 1fr); } .rules-board { width: min(260px, 100%); } }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Lessons and openings on narrow screens: title, then the board, then the instructions. */
+@media (max-width: 900px) {
+  .game.lesson .crumbs { order: 0; }
+  .game.lesson .game-title { display: block; order: 0; font-size: 1.15rem; margin: 0; }
+  .game.lesson .opening-side, .game.lesson .tabs { order: 0; }
+  .game.lesson .lesson-panel { order: 2; }
+}
+.tabs { display: flex; gap: 6px; }
+.tab { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.opening-side { margin: 0; }
+.opening-ideas { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.opening-badge { margin: 0; font-size: .85rem; color: var(--muted); }
+.opening-badge a { color: inherit; }

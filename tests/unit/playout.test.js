@@ -107,3 +107,11 @@ test('hold goal: promoting straight back after an enemy promotion keeps the game
   assert.equal(p.opponentMove('h2h1q').result, 'continue');
   assert.equal(p.playerMove('c7c8q').result, 'continue');
 });
+
+test('mate goal: losing the queen explains why the game is drawn', () => {
+  const p = createPlayout(lesson({ fen: '8/8/8/4k3/8/8/8/4K2Q w - - 0 1', goal: 'mate', moves: 10 }));
+  assert.equal(p.playerMove('h1e4').result, 'continue');
+  const r = p.opponentMove('e5e4');
+  assert.equal(r.result, 'lost');
+  assert.match(r.message, /queen was captured/);
+});

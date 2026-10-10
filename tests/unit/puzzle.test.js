@@ -47,3 +47,18 @@ test('"any" goals accept any legal move; promotion nudges toward a queen', () =>
   assert.match(promo.tryMove('e7e8n').message, /queen/);
   assert.equal(promo.tryMove('e7e8q').result, 'solved');
 });
+
+test('wrong moves are explained: a hanging piece, a missed check, a missed capture', () => {
+  // Back-rank mate: Ra8# is the answer.
+  const mate = createPuzzle({ fen: '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', goal: 'mate', solution: ['a1a8'], success: 'ok' });
+  const quiet = mate.tryMove('a1a2');
+  assert.equal(quiet.result, 'wrong');
+  assert.match(quiet.message, /check/);
+  // Knight fork lesson style: a piece moved where it can be taken for free.
+  const hang = createPuzzle({ fen: '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', goal: 'mate', solution: ['a1a8'], success: 'ok' });
+  const r = hang.tryMove('a1a7');
+  assert.equal(r.result, 'wrong');
+  assert.match(r.message, /check|taken/);
+  const custom = createPuzzle({ fen: '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', goal: 'mate', solution: ['a1a8'], success: 'ok', wrong: { a1b1: 'Custom words.' } });
+  assert.equal(custom.tryMove('a1b1').message, 'Custom words.');
+});

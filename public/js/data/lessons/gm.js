@@ -36,7 +36,7 @@ export const GM_LESSONS = [
     solution: ['d3h7', 'g8h7', 'f3g5', 'h7g8', 'd1h5'],
     prompt: 'White to play. The black king has no knight on f6 to defend it. Attack!',
     hints: ['Sacrifice the bishop on h7 with check.', 'After the king takes, check with the knight, then bring the queen to h5.'],
-    success: 'Bxh7+! Kxh7 Ng5+ Kg8 Qh5 — mate on h7 can only be delayed (…Bxg5 hxg5 opens the h-file too). Black\'s best try, …Kh6 instead of …Kg8, still loses heavily.',
+    success: 'Bxh7+! Kxh7 Ng5+ Kg8 Qh5 — White threatens Qh7 mate, and Black can only stop it by giving up a lot of material. Black\'s best try, …Kh6 instead of …Kg8, also loses heavily.',
   },
   {
     id: 'gm-saavedra',
@@ -47,6 +47,7 @@ export const GM_LESSONS = [
     fen: '8/8/1KP5/3r4/8/8/8/k7 w - - 0 1',
     goal: 'line',
     solution: ['c6c7', 'd5d6', 'b6b5', 'd6d5', 'b5b4', 'd5d4', 'b4b3', 'd4d3', 'b3c2', 'd3d4', 'c7c8r', 'd4a4', 'c2b3'],
+    wrong: { c7c8q: 'A queen? Then …Rc4+! and after Qxc4 the black king has no legal move — stalemate, a draw. Which other piece could the pawn become?' },
     prompt: 'White to play and win. The black rook will chase your king with checks.',
     hints: ['Push the pawn, then walk your king toward the rook to escape the checks.', 'When the pawn can queen, look again: a queen allows a stalemate trick (…Rc4+ and …Rxc8). What else could the pawn become?'],
     success: 'c8=R!! A queen would allow …Rc4+ and stalemate after Qxc4. With a rook, White threatens Ra8 mate, and after …Ra4 the king attacks the rook and mate follows.',

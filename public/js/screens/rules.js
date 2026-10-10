@@ -15,7 +15,7 @@ export const RULE_SECTIONS = [
   { id: 'resign', title: 'Resigning and leaving', text: 'You may resign at any time, which loses the game. In online play, if your opponent disconnects and does not return within a minute, you may claim the win.', fen: null },
 ];
 
-export function renderRules(outlet) {
+export function renderRules(outlet, { query } = {}) {
   const boards = [];
   const page = h('div', { class: 'page menu rules', testid: 'rules' },
     h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / ', h('a', { href: '#/train' }, 'Training Mode'), ' / Rules'),
@@ -43,6 +43,11 @@ export function renderRules(outlet) {
       e.preventDefault();
       document.getElementById(`rule-${link.dataset.section}`)?.scrollIntoView({ behavior: 'smooth' });
     });
+  }
+  // #/rules?section=<id> (e.g. a link from a lesson) opens at that rule.
+  const section = query?.get('section');
+  if (section && RULE_SECTIONS.some((r) => r.id === section)) {
+    requestAnimationFrame(() => document.getElementById(`rule-${section}`)?.scrollIntoView());
   }
   return () => views.forEach((v) => v.destroy());
 }

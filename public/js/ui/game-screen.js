@@ -17,7 +17,7 @@
 //   drawAnswerer?(offer)   colour that may answer an offer on this device, if any
 //   resultTitle?(status)   custom game-over heading
 //   destroy()              release resources; the screen owns the session and calls it on teardown
-import { h, pieceGlyph, COLOR_NAME } from './dom.js';
+import { h, fill, pieceGlyph, COLOR_NAME } from './dom.js';
 import { BoardView } from './board-view.js';
 import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
@@ -274,7 +274,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     const answerer = offer && !status.over ? (session.drawAnswerer?.(offer) ?? null) : null;
     drawBar.hidden = !offer || status.over;
     if (drawBar.hidden) return drawBar.replaceChildren();
-    drawBar.replaceChildren(
+    fill(drawBar,
       h('span', {}, `${COLOR_NAME[offer]} offers a draw.`),
       answerer ? h('span', { class: 'draw-actions' },
         h('button', { class: 'btn btn-small btn-primary', type: 'button', testid: 'btn-accept-draw', onClick: () => session.acceptDraw(answerer) }, `Accept (${COLOR_NAME[answerer]})`),

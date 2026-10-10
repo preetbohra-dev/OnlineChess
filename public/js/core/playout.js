@@ -7,7 +7,7 @@
 // playerMove(input) / opponentMove(uci) ->
 //   { result: 'illegal' } | { result: 'continue', move } | { result: 'won' | 'lost', move, message }
 import { createGame, otherColor } from './rules.js';
-import { materialBalance } from './tactics.js';
+import { materialBalance, PIECE_NAME } from './tactics.js';
 
 export function createPlayout(lesson) {
   let game;
@@ -46,7 +46,11 @@ export function createPlayout(lesson) {
     }
     if (lesson.goal === 'hold') return won(move);
     if (s.reason === 'stalemate') return end('lost', move, 'Stalemate! The king has no legal move but is not in check — that is a draw. Leave it a square.');
-    if (s.reason === 'insufficient') return end('lost', move, 'Draw — there is not enough material left to checkmate.');
+    if (s.reason === 'insufficient') {
+      return end('lost', move, move.color === playerColor
+        ? 'Draw — there is not enough material left to checkmate.'
+        : `Your ${PIECE_NAME[move.captured] ?? 'piece'} was captured — without it there is no way to checkmate. Keep your pieces protected.`);
+    }
     return end('lost', move, 'The game ended in a draw. Restart and try again.');
   }
 
