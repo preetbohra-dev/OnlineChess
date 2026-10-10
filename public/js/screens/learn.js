@@ -1,6 +1,6 @@
 // Training → Lessons: the hub (tracks by level) and the lesson player (read steps, puzzles, or
 // playouts against Stockfish).
-import { h } from '../ui/dom.js';
+import { h, fill, liveRegion } from '../ui/dom.js';
 import { BoardView } from '../ui/board-view.js';
 import { choosePromotion } from '../ui/modal.js';
 import { LESSON_TRACKS, ALL_LESSONS, lessonById } from '../data/lessons/index.js';
@@ -76,7 +76,7 @@ function playRead(lesson, boardHost, panel, nextLink) {
     board.markSquares(s.highlights ?? []);
     const last = step === lesson.steps.length - 1;
     if (last) markLessonComplete(lesson.id);
-    panel.replaceChildren(
+    fill(panel,
       h('p', { class: 'lesson-step-count muted' }, `Step ${step + 1} of ${lesson.steps.length}`),
       h('p', { class: 'lesson-text', testid: 'lesson-text' }, s.text),
       h('div', { class: 'lesson-actions' },
@@ -87,12 +87,18 @@ function playRead(lesson, boardHost, panel, nextLink) {
   return () => board.destroy();
 }
 
+// Hints escalate: each press shows the next text hint (and highlights the piece to move); after
+// the last text hint, one more press shows the move itself as an arrow.
 function playPuzzle(lesson, boardHost, panel, nextLink) {
   const puzzle = createPuzzle(lesson);
   const playerColor = puzzle.game.turn();
+  const live = liveRegion();
+  const maxHints = lesson.hints.length + 1;
   let hintsShown = 0;
   let message = { kind: 'prompt', text: lesson.prompt };
   let busy = false;
+  let replyTimer = null;
+  let destroyed = false;
 
   const board = new BoardView(boardHost, {
     fen: lesson.fen,
@@ -104,6 +110,7 @@ function playPuzzle(lesson, boardHost, panel, nextLink) {
   board.setInput(playerColor);
 
   function attempt(move) {
+    if (destroyed || busy) return undefined;
     const outcome = puzzle.tryMove(move);
     if (outcome.result === 'illegal') return render();
     if (outcome.result === 'wrong') {
@@ -111,42 +118,79 @@ function playPuzzle(lesson, boardHost, panel, nextLink) {
       message = { kind: 'wrong', text: outcome.message };
       return render();
     }
-    playSound(soundForMove(outcome.move));
+    hintsShown = 0;
     if (outcome.result === 'solved') {
       markLessonComplete(lesson.id);
       playSound('end');
       message = { kind: 'success', text: outcome.message };
       return render();
     }
+    playSound(soundForMove(outcome.move));
     message = { kind: 'good', text: 'Correct! Keep going.' };
     busy = true;
     render();
-    setTimeout(() => { busy = false; playSound(soundForMove(outcome.reply)); render(); }, 450);
+    replyTimer = setTimeout(() => {
+      replyTimer = null;
+      if (destroyed) return;
+      busy = false;
+      playSound(soundForMove(outcome.reply));
+      render();
+    }, 450);
     return undefined;
+  }
+
+  function restart() {
+    clearTimeout(replyTimer);
+    replyTimer = null;
+    busy = false;
+    puzzle.reset();
+    hintsShown = 0;
+    message = { kind: 'prompt', text: lesson.prompt };
+    render();
   }
 
   function render() {
     const history = puzzle.game.history({ verbose: true });
     const shownPly = busy ? history.length - 1 : history.length;
     const fen = shownPly === 0 ? lesson.fen : history[shownPly - 1].after;
+    const showHint = hintsShown > 0 && !puzzle.solved && !busy;
+    const move = showHint ? puzzle.hintMove() : null;
     board.setPosition(fen, true);
-    board.highlight({ lastMove: history[shownPly - 1] ?? null, hint: hintsShown && !puzzle.solved ? puzzle.hintSquare() : null });
+    board.highlight({ lastMove: history[shownPly - 1] ?? null, hint: move ? move.slice(0, 2) : null });
+    board.setArrows(move && hintsShown >= maxHints ? [{ from: move.slice(0, 2), to: move.slice(2, 4), type: 'info' }] : []);
     panel.dataset.state = puzzle.solved ? 'solved' : 'playing';
-    panel.replaceChildren(
+    const hintText = !showHint ? null
+      : hintsShown >= maxHints ? 'The arrow shows the move.' : lesson.hints[hintsShown - 1];
+    live.say(message.text);
+    fill(panel,
+      live.el,
       h('p', { class: 'lesson-to-move' }, puzzle.solved ? 'Solved!' : `${playerColor === 'w' ? 'White' : 'Black'} to move`),
-      h('p', { class: `lesson-feedback lesson-${message.kind}`, testid: 'lesson-feedback', role: 'status' }, message.text),
-      hintsShown ? h('p', { class: 'lesson-hint muted', testid: 'lesson-hint' }, lesson.hints[Math.min(hintsShown, lesson.hints.length) - 1]) : null,
+      h('p', { class: `lesson-feedback lesson-${message.kind}`, testid: 'lesson-feedback' }, message.text),
+      hintText ? h('p', { class: 'lesson-hint muted', testid: 'lesson-hint' }, hintText) : null,
       h('div', { class: 'lesson-actions' },
         puzzle.solved
           ? nextLink()
           : h('button', {
-            class: 'btn', type: 'button', testid: 'btn-lesson-hint',
-            onClick: () => { hintsShown++; render(); },
-          }, '💡 Hint'),
-        h('button', { class: 'btn', type: 'button', testid: 'btn-lesson-reset', onClick: () => { puzzle.reset(); hintsShown = 0; message = { kind: 'prompt', text: lesson.prompt }; render(); } }, '↺ Restart')));
+            class: 'btn', type: 'button', testid: 'btn-lesson-hint', disabled: busy || hintsShown >= maxHints,
+            onClick: () => { hintsShown = Math.min(maxHints, hintsShown + 1); render(); },
+          }, hintsShown >= lesson.hints.length ? '👁 Show the move' : `💡 Hint${hintsShown ? ` ${hintsShown + 1}` : ''}`),
+        h('button', { class: 'btn', type: 'button', testid: 'btn-lesson-reset', onClick: restart }, '↺ Restart')));
   }
   render();
-  return () => board.destroy();
+  return () => {
+    destroyed = true;
+    clearTimeout(replyTimer);
+    board.destroy();
+  };
+}
+
+// How quickly a playout was won, against the lesson's par (the number of moves a strong player needs).
+function parNote(lesson, used) {
+  if (lesson.goal === 'hold') return `You held for ${used} moves.`;
+  if (!lesson.par) return `Done in ${used} of ${lesson.moves} moves.`;
+  return used <= lesson.par
+    ? `Done in ${used} moves — par is ${lesson.par}. Excellent technique!`
+    : `Done in ${used} moves — par is ${lesson.par}. Restart and try to be quicker.`;
 }
 
 // Play a position out against full-strength Stockfish on its own worker.
@@ -155,6 +199,7 @@ function playPlayout(lesson, boardHost, panel, nextLink, { startEngine, fast }) 
   const { playerColor } = playout;
   const engine = startEngine();
   const limits = fast ? { depth: 6 } : { movetime: 400 };
+  const live = liveRegion();
   let hintsShown = 0;
   let hintSquare = null;
   let thinking = false;
@@ -189,7 +234,7 @@ function playPlayout(lesson, boardHost, panel, nextLink, { startEngine, fast }) 
     if (outcome.result === 'won') {
       markLessonComplete(lesson.id);
       playSound('end');
-      message = { kind: 'success', text: outcome.message };
+      message = { kind: 'success', text: `${outcome.message} ${parNote(lesson, lesson.moves - playout.movesLeft())}` };
     } else if (outcome.result === 'lost') {
       playSound('end');
       message = { kind: 'wrong', text: outcome.message };
@@ -256,12 +301,14 @@ function playPlayout(lesson, boardHost, panel, nextLink, { startEngine, fast }) 
     panel.dataset.state = playout.result ?? (thinking ? 'thinking' : 'playing');
     panel.dataset.fen = playout.game.fen();
     const hintText = hintsShown ? lesson.hints[Math.min(hintsShown, lesson.hints.length) - 1] : null;
-    panel.replaceChildren(
+    live.say(message.text);
+    fill(panel,
+      live.el,
       h('p', { class: 'lesson-to-move' },
         playout.result === 'won' ? 'Done!' : `You play ${playerColor === 'w' ? 'White' : 'Black'} against Stockfish`),
       h('p', { class: 'playout-moves muted', testid: 'playout-moves' }, `Moves left: ${playout.movesLeft()} of ${lesson.moves}`),
-      h('p', { class: `lesson-feedback lesson-${message.kind}`, testid: 'lesson-feedback', role: 'status' }, message.text),
-      hintText ? h('p', { class: 'lesson-hint muted', testid: 'lesson-hint' }, hintSquare && !playout.over ? `${hintText} The highlighted piece has the engine's move.` : hintText) : null,
+      h('p', { class: `lesson-feedback lesson-${message.kind}`, testid: 'lesson-feedback' }, message.text),
+      hintText ? h('p', { class: 'lesson-hint muted', testid: 'lesson-hint' }, hintSquare && !playout.over ? `${hintText} Try moving the highlighted piece.` : hintText) : null,
       h('div', { class: 'lesson-actions' },
         playout.result === 'won'
           ? nextLink()

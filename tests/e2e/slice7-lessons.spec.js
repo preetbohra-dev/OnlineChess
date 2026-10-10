@@ -27,7 +27,7 @@ test('a read lesson steps through to the end', async ({ page }) => {
 test('a puzzle: wrong move is explained, right moves get replies, then solved and remembered', async ({ page }) => {
   await openLesson(page, 'amateur-knight-fork');
   await move(page, 'd5', 'b6');
-  await expect(page.getByTestId('lesson-feedback')).toContainText('Not quite');
+  await expect(page.getByTestId('lesson-feedback')).toContainText('forcing move');
   await move(page, 'd5', 'c7');
   await expect(page.getByTestId('lesson-feedback')).toContainText('Correct');
   await page.waitForTimeout(700); // the scripted reply
@@ -60,4 +60,39 @@ test('the rules handbook covers every rule', async ({ page }) => {
     await expect(page.getByTestId(`rule-${id}`)).toBeAttached();
   }
   await expect(page.getByTestId('rule-draws')).toContainText('fifty-move');
+});
+
+test('leaving or restarting a puzzle right after a correct move causes no errors', async ({ page }) => {
+  await openLesson(page, 'amateur-knight-fork');
+  await move(page, 'd5', 'c7');
+  await page.getByTestId('btn-lesson-reset').click();
+  await expect(page.getByTestId('lesson-feedback')).not.toContainText('Correct');
+  await page.waitForTimeout(600);
+  await move(page, 'd5', 'c7');
+  await page.goto('/#/learn');
+  await page.waitForTimeout(600);
+  await expect(page.getByTestId('track-novice')).toBeVisible();
+});
+
+test('puzzle panels never print "null", and hints escalate to showing the move', async ({ page }) => {
+  await openLesson(page, 'amateur-pin');
+  await expect(page.locator('.lesson-panel')).not.toContainText('null');
+  const hint = page.getByTestId('btn-lesson-hint');
+  await hint.click();
+  await expect(page.getByTestId('lesson-hint')).toContainText('pawn');
+  await expect(hint).toBeFocused();
+  await hint.click();
+  await expect(page.getByTestId('lesson-hint')).toContainText('arrow');
+  await expect(hint).toBeDisabled();
+});
+
+test('a wrong move is explained, not just rejected', async ({ page }) => {
+  await openLesson(page, 'novice-back-rank');
+  await move(page, 'a1', 'a2');
+  await expect(page.getByTestId('lesson-feedback')).toContainText('check');
+});
+
+test('#/rules?section= opens at that rule', async ({ page }) => {
+  await page.goto('/#/rules?section=draws');
+  await expect(page.getByTestId('rule-draws')).toBeInViewport();
 });

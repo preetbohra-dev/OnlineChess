@@ -1,7 +1,8 @@
 // Lesson puzzle state machine. Pure: the lesson player UI drives it.
 //   tryMove(move) -> { result: 'illegal' | 'wrong' | 'correct' | 'solved', move?, reply?, message? }
 // 'correct' means the move was right and the opponent replied (reply holds its move).
-import { createGame } from './rules.js';
+import { createGame, otherColor } from './rules.js';
+import { PIECE_NAME } from './tactics.js';
 
 export function createPuzzle(lesson) {
   let game;
@@ -29,6 +30,8 @@ export function createPuzzle(lesson) {
 
     // The square of the piece the main line moves next (for hints).
     hintSquare: () => (solved ? null : lines[0][index]?.slice(0, 2) ?? null),
+    // The main line's next move (UCI), for the "show the move" hint.
+    hintMove: () => (solved ? null : lines[0][index] ?? null),
 
     tryMove(input) {
       if (solved) return { result: 'illegal' };
@@ -45,7 +48,7 @@ export function createPuzzle(lesson) {
       const matching = lines.filter((line) => line[index] === r.uci);
       if (!matching.length) {
         if (lesson.goal === 'promote' && r.promotion && r.promotion !== 'q') return wrong('Good idea to promote — but a queen is the strongest choice here.');
-        return wrong('Not quite. Try again — or use a hint.');
+        return wrong(explainWrong(r));
       }
       lines = matching;
       index++;
@@ -56,6 +59,29 @@ export function createPuzzle(lesson) {
       return { result: 'correct', move: r, reply };
     },
   };
+
+  // Why a move is not the solution, in plain words (called with the wrong move still on the board).
+  function explainWrong(r) {
+    const own = r.color;
+    const enemy = otherColor(own);
+    const custom = lesson.wrong?.[r.uci];
+    if (custom) return custom;
+    const attacked = game.attackers(r.to, enemy).length > 0;
+    const defended = game.attackers(r.to, own).length > 0;
+    if (r.piece !== 'k' && r.piece !== 'p' && attacked && !defended) {
+      return `${r.san} puts your ${PIECE_NAME[r.piece]} on ${r.to}, where it can simply be taken. Try again — or use a hint.`;
+    }
+    const expected = lines[0][index];
+    const probe = createGame({ fen: game.history({ verbose: true }).at(-1).before });
+    const best = probe.move(expected);
+    if (best.ok && /[+#]$/.test(best.san) && !/[+#]$/.test(r.san)) {
+      return `${r.san} gives your opponent time to defend. Look for a forcing move — a check — instead.`;
+    }
+    if (best.ok && best.captured && !r.captured) {
+      return `${r.san} is too slow — there is something to capture right now. Look at every capture.`;
+    }
+    return `${r.san} is not the strongest move here. Try again — or use a hint.`;
+  }
 
   function finish(move) {
     solved = true;

@@ -17,10 +17,10 @@ test('Lessons list Pro and Grand Master tracks with playout lessons', async ({ p
 
 test('a playout: the player moves, Stockfish replies, the move budget counts down', async ({ page }) => {
   await openLesson(page, 'pro-queen-mate', '?engine=fast');
-  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 12 of 12');
+  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 10 of 10');
   await expect.poll(() => page.evaluate(() => globalThis.__oc.engines)).toBe(1);
   await move(page, 'h1', 'h4');
-  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 11 of 12');
+  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 9 of 10');
   await expect(page.getByTestId('lesson-feedback')).toHaveText('Your move.', { timeout: 15_000 });
   await expect(page.locator('.lesson-panel')).toHaveAttribute('data-state', 'playing');
   // White to move again, and the black king has left e5.
@@ -41,7 +41,7 @@ test('playout restart resets the board and budget; leaving stops the engine', as
   await move(page, 'h1', 'h4');
   await expect(page.getByTestId('lesson-feedback')).toHaveText('Your move.', { timeout: 15_000 });
   await page.getByTestId('btn-lesson-reset').click();
-  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 12 of 12');
+  await expect(page.getByTestId('playout-moves')).toHaveText('Moves left: 10 of 10');
   await expect(page.locator('.lesson-panel')).toHaveAttribute('data-fen', '8/8/8/4k3/8/8/8/4K2Q w - - 0 1');
   await page.goto('/#/learn');
   await expect.poll(() => page.evaluate(() => globalThis.__oc.engines)).toBe(0);
@@ -66,7 +66,7 @@ test('Saavedra: promoting to a queen is rejected, the rook underpromotion is rig
   }
   await move(page, 'c7', 'c8');
   await page.getByTestId('promo-q').click();
-  await expect(page.getByTestId('lesson-feedback')).toContainText('Not quite');
+  await expect(page.getByTestId('lesson-feedback')).toContainText('stalemate');
   await move(page, 'c7', 'c8');
   await page.getByTestId('promo-r').click();
   await expect(page.getByTestId('lesson-feedback')).toContainText('Correct');

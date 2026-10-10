@@ -46,9 +46,17 @@ for (const lesson of ALL_LESSONS.filter((l) => l.type === 'playout')) {
       const moves = playout.game.history({ verbose: true }).map((m) => m.uci);
       const players = playout.game.turn() === playout.playerColor;
       // The player side searches deeper: without tablebases a shallow search shuffles in K+R v K.
-      const r = await engine.go({ fen: lesson.fen, moves, depth: players ? 20 : 14, multipv: 1, options: ANALYSIS });
-      const outcome = players ? playout.playerMove(r.bestmove) : playout.opponentMove(r.bestmove);
-      assert.notEqual(outcome.result, 'illegal', `${lesson.id}: engine move ${r.bestmove} rejected`);
+      const r = await engine.go({ fen: lesson.fen, moves, depth: players ? 20 : 14, multipv: players ? 4 : 1, options: ANALYSIS });
+      let choice = r.bestmove;
+      // Without tablebases Stockfish shuffles in won pawn endings; like a human, push the pawn
+      // whenever that keeps a winning score.
+      if (players && lesson.goal === 'promote') {
+        const pawn = new Set(playout.game.legalMoves().filter((m) => m.piece === 'p').map((m) => m.uci));
+        const push = r.lines.find((l) => pawn.has(l.pv[0]) && scoreToCp(l.score) >= 400);
+        if (push) choice = push.pv[0];
+      }
+      const outcome = players ? playout.playerMove(choice) : playout.opponentMove(choice);
+      assert.notEqual(outcome.result, 'illegal', `${lesson.id}: engine move ${choice} rejected`);
     }
     assert.equal(playout.result, 'won', `${lesson.id}: ${playout.game.history().join(' ')}`);
   });
