@@ -224,6 +224,11 @@ class Game {
     return piece ? { type: piece.type, color: piece.color } : null;
   }
 
+  // Squares of `color` pieces attacking `square` (defenders when the square holds a `color` piece).
+  attackers(square, color) {
+    return SQUARE.test(square) && isColor(color) ? this.#chess.attackers(square, color) : [];
+  }
+
   board() { return this.#chess.board(); }
   fen() { return this.#chess.fen(); }
   turn() { return this.#chess.turn(); }

@@ -23,8 +23,11 @@ export function createBotSession({
   fast = false,
   minThinkMs = 350,
   now,
-  analyzer = null, // engine/analysis.js analyzer on its own engine; enables taunts
+  analyzer = null, // engine/analysis.js analyzer on its own engine; enables taunts and coaching
   tauntsEnabled = () => true,
+  allowTakeback = false, // training only
+  coaching = false, // analyse every player move even with taunts off (training)
+  beforeReply = null, // async hook awaited before each bot move (training: pause after mistakes)
 }) {
   const rules = createGame({ fen });
   const startFen = rules.fen();
@@ -79,7 +82,7 @@ export function createBotSession({
 
   // Analyse the player's move on the analysis engine and react to mistakes (or brilliance).
   async function react(move) {
-    if (!analyzer || !tauntsEnabled()) return;
+    if (!analyzer || (!coaching && !tauntsEnabled())) return;
     const history = rules.history({ verbose: true });
     const ply = history.length;
     let analysis;
@@ -91,7 +94,11 @@ export function createBotSession({
         afterStatus: rules.status(),
       });
     } catch {
-      return; // analysis is best-effort; the game goes on without commentary
+      analysis = null; // analysis is best-effort; the game goes on without commentary
+    }
+    if (!analysis && !destroyed) {
+      events.emit('analysis-failed', { ply });
+      return;
     }
     const current = rules.history({ verbose: true });
     const stillThere = current[ply - 1]?.uci === move.uci;
@@ -157,6 +164,10 @@ export function createBotSession({
         thinking = false;
         changed({ action: 'claimDraw', kind: claimable[0] });
         return;
+      }
+      if (beforeReply) {
+        await beforeReply();
+        if (myGen !== gen || destroyed || rules.status().over) return;
       }
       const move = await chooseMove(myGen);
       if (move == null || myGen !== gen || destroyed) return;
@@ -228,8 +239,9 @@ export function createBotSession({
       [playerColor]: { name: 'You', avatar: '🙂' },
       [botColor]: { name: persona.name, avatar: persona.avatar },
     },
-    capabilities: { resign: true, offerDraw: true, claimDraw: true },
+    capabilities: { resign: true, offerDraw: true, claimDraw: true, takeback: allowTakeback },
     on: events.on,
+    emit: events.emit, // for wrappers such as the training session
 
     isThinking: () => thinking,
     statusNote: () => (engineState === 'loading' ? `waking up ${persona.name}…` : thinking ? `${persona.name} is thinking…` : ''),
@@ -278,6 +290,24 @@ export function createBotSession({
       if (r.ok) changed({ action: 'claimDraw', kind });
       return r;
     },
+    canTakeback: () => allowTakeback && rules.history().length >= (rules.turn() === playerColor ? 2 : 1),
+
+    // Training: undo back to the player's previous turn (the bot's reply and the player's move).
+    takeback() {
+      if (!allowTakeback) return { ok: false, reason: 'not-allowed' };
+      const plies = rules.history().length;
+      const undo = rules.turn() === playerColor ? 2 : 1;
+      // Moves alternate, so with the player to move the last two plies are bot reply + player move.
+      if (plies < undo) return { ok: false, reason: 'nothing-to-undo' };
+      gen++;
+      thinking = false;
+      Promise.resolve(engine).then((e) => e?.cancel?.()).catch(() => {});
+      for (let i = 0; i < undo; i++) rules.undo();
+      endAnnounced = false;
+      events.emit('change', { action: 'takeback' });
+      return { ok: true };
+    },
+
     destroy() {
       destroyed = true;
       gen++;
