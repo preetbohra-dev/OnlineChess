@@ -49,7 +49,7 @@ export function renderPlayMenu(outlet) {
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against a person'),
       h('div', { class: 'option-list' },
-        optionCard({ testid: 'opt-local', href: '#/play/local', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen.' }),
+        optionCard({ testid: 'opt-local', href: '#/play/local/new', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen.' }),
         optionCard({ testid: 'opt-online', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.', soon: true }))),
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against the computer'),

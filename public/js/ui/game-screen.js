@@ -4,7 +4,10 @@
 //   kind, title            string identifiers for the mode
 //   rules                  a core/rules.js Game the screen reads state from (fen, status, history, ...)
 //   players                { w: {name, avatar}, b: {name, avatar} }
-//   capabilities           { resign, offerDraw, claimDraw } — which controls to show
+//   capabilities           { resign, offerDraw, claimDraw, autoFlip } — which controls/behaviour apply
+//   clock?                 core/clock.js clock (remaining, running, flagged) or null when untimed
+//   flag(color)            end the game on time for `color` (FIDE 6.9 applied by rules)
+//   statusNote?()          extra status text, e.g. "Pip is thinking…"
 //   on(event, fn)          'change' (after any state change; payload {move} or {action, color|kind})
 //                          and 'feed' ({kind, text, avatar}); returns an unsubscribe function
 //   inputColor()           'w' | 'b' | 'both' | null — who may move on this board now
@@ -16,10 +19,13 @@
 //   destroy()              release resources; the screen owns the session and calls it on teardown
 import { h, pieceGlyph, COLOR_NAME } from './dom.js';
 import { BoardView } from './board-view.js';
-import { openModal, confirmDialog, choosePromotion } from './modal.js';
+import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
 import { describeResult, RULE_NOTES, otherColor } from '../core/rules.js';
 import { bus } from '../core/events.js';
+import { formatClock } from '../core/clock.js';
+import { appSettings, ANIMATION_MS } from '../store/settings.js';
+import { playSound, soundForMove } from './sound.js';
 
 const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const CAPTURE_ORDER = ['q', 'r', 'b', 'n', 'p'];
@@ -56,22 +62,29 @@ function playerCard() {
   const turnDot = h('span', { class: 'turn-dot', 'aria-hidden': 'true' });
   const captured = h('span', { class: 'captured' });
   const advantage = h('span', { class: 'material-adv' });
-  const clockSlot = h('div', { class: 'clock-slot' });
+  const clock = h('div', { class: 'clock', role: 'timer', hidden: true });
   const el = h('div', { class: 'player-card' },
     avatar,
     h('div', { class: 'player-info' }, h('div', { class: 'player-line' }, name, turnDot), h('div', { class: 'player-material' }, captured, advantage)),
-    clockSlot);
+    clock);
   return {
     el,
-    clockSlot,
+    // ms === null hides the clock (untimed game).
+    updateClock(color, ms, { running = false } = {}) {
+      clock.hidden = ms === null;
+      if (ms === null) return;
+      clock.dataset.testid = `clock-${color}`;
+      clock.textContent = formatClock(ms);
+      clock.setAttribute('aria-label', `${color === 'w' ? 'White' : 'Black'} clock ${formatClock(ms)}`);
+      clock.classList.toggle('running', running);
+      clock.classList.toggle('low', ms < 10_000);
+    },
     update({ color, player, capturedTypes, lead, toMove }) {
       el.dataset.color = color;
       el.classList.toggle('to-move', toMove);
       avatar.textContent = player.avatar ?? '';
       name.textContent = player.name;
-      captured.replaceChildren(...(capturedTypes.length
-        ? capturedTypes.map((t) => h('span', { class: 'cap' }, pieceGlyph(otherColor(color), t)))
-        : [h('span', { class: 'no-captures' }, 'No captures yet')]));
+      captured.replaceChildren(...capturedTypes.map((t) => h('span', { class: 'cap' }, pieceGlyph(otherColor(color), t))));
       captured.setAttribute('aria-label', capturedTypes.length ? `Captured: ${capturedTypes.join(', ')}` : 'No captures');
       advantage.textContent = lead > 0 ? `+${lead}` : '';
     },
@@ -85,6 +98,11 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   let bottomColor = orientation;
   let destroyed = false;
   let gameOverTimer = null;
+  let lastLowSecond = null;
+  let lowSecondColor = null;
+  let autoFlippedAtPly = -1;
+  const settings = appSettings();
+  const prefs = settings.get();
 
   const boardHost = h('div', { class: 'board-host' });
   const topCard = playerCard();
@@ -126,6 +144,9 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   const board = new BoardView(boardHost, {
     fen: rules.fen(),
     orientation,
+    animationMs: ANIMATION_MS[prefs.animation],
+    showCoordinates: prefs.showCoordinates,
+    showLegalDots: () => settings.get().showLegalMoves,
     legalMoves: (square) => rules.legalMoves(square),
     onMove: (move) => {
       if (destroyed) return;
@@ -166,6 +187,48 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
         lead: score[color] - score[otherColor(color)],
         toMove: !status.over && rules.turn() === color,
       });
+    }
+    renderClocks();
+  }
+
+  function renderClocks() {
+    const clock = session.clock;
+    for (const [card, color] of [[bottomCard, bottomColor], [topCard, otherColor(bottomColor)]]) {
+      card.updateClock(color, clock ? clock.remaining(color) : null, { running: clock?.running() === color });
+    }
+  }
+
+  // Clock loop: refresh the displays, flag a player whose time ran out, tick in the last 10 s.
+  function tick() {
+    const clock = session.clock;
+    if (destroyed || !clock) return;
+    const flagged = rules.status().over ? null : clock.flagged();
+    if (flagged) {
+      session.flag(flagged);
+      return;
+    }
+    renderClocks();
+    const running = clock.running();
+    if (!running) return;
+    const ms = clock.remaining(running);
+    const second = Math.ceil(ms / 1000);
+    if (ms < 10_000 && (second !== lastLowSecond || running !== lowSecondColor)) {
+      lastLowSecond = second;
+      lowSecondColor = running;
+      playSound('lowtime');
+    }
+  }
+  const tickTimer = session.clock ? setInterval(tick, 100) : null;
+
+  // Pass and play: turn the board toward the player to move — once per move, so a manual Flip
+  // sticks until the next move.
+  function applyAutoFlip(status, ply) {
+    if (!caps.autoFlip || !settings.get().autoFlip || status.over || reviewPly !== null) return;
+    if (ply === autoFlippedAtPly) return;
+    autoFlippedAtPly = ply;
+    if (bottomColor !== rules.turn()) {
+      bottomColor = rules.turn();
+      board.setOrientation(bottomColor);
     }
   }
 
@@ -213,6 +276,8 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     const status = rules.status();
     const history = rules.history({ verbose: true });
     if (reviewPly !== null && reviewPly >= history.length) reviewPly = null;
+    applyAutoFlip(status, history.length);
+    root.dataset.orientation = bottomColor;
     root.dataset.fen = rules.fen();
     root.dataset.status = status.over ? 'over' : 'playing';
     root.dataset.result = status.result ?? '';
@@ -236,9 +301,10 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
 
     banner.classList.toggle('over', status.over);
     banner.classList.toggle('check', !status.over && rules.inCheck());
+    const note = status.over ? '' : (session.statusNote?.() ?? '');
     banner.textContent = status.over
       ? describeResult(status)
-      : `${COLOR_NAME[rules.turn()]} to move${rules.inCheck() ? ' — check!' : ''}`;
+      : `${COLOR_NAME[rules.turn()]} to move${rules.inCheck() ? ' — check!' : ''}${note ? ` · ${note}` : ''}`;
 
     renderCards(history, status);
     renderMoveList(history);
@@ -261,6 +327,9 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     else if (!announcedEnd) {
       announcedEnd = true;
       addFeed('system', describeResult(status));
+      playSound('end');
+      board.cancelInput();
+      closeAllModals(); // e.g. a promotion picker or resign confirmation left open when the flag fell
       clearTimeout(gameOverTimer);
       gameOverTimer = setTimeout(() => { if (!destroyed) showGameOver(status); }, animate ? 350 : 0);
       bus.emit('game:end', { kind: session.kind, status, pgn: pgn(), session });
@@ -339,11 +408,17 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
   document.addEventListener('keydown', onKey);
 
   const offChange = session.on('change', (detail) => {
+    if (detail?.move && !rules.status().over) playSound(soundForMove(detail.move));
+    if (detail?.action === 'offerDraw') playSound('notify');
     if (detail?.action === 'declineDraw') addFeed('system', `${COLOR_NAME[detail.color]} declines the draw.`);
     if (detail?.action === 'acceptDraw') addFeed('system', `${COLOR_NAME[detail.color]} accepts the draw.`);
     render();
   });
   const offFeed = session.on('feed', ({ kind, text, avatar }) => addFeed(kind, text, { avatar }));
+  const offSettings = settings.on('change', (s) => {
+    board.setAnimationMs(ANIMATION_MS[s.animation]);
+    render({ animate: false });
+  });
 
   addFeed('system', rules.history().length || rules.fen().split(' ')[1] === 'b'
     ? `${COLOR_NAME[rules.turn()]} to move. Good luck!`
@@ -358,9 +433,11 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     destroy() {
       destroyed = true;
       clearTimeout(gameOverTimer);
+      clearInterval(tickTimer);
       document.removeEventListener('keydown', onKey);
       offChange();
       offFeed();
+      offSettings();
       board.destroy();
       session.destroy();
     },
