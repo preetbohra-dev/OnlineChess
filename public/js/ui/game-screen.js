@@ -125,11 +125,14 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     offerDraw: caps.offerDraw ? button('btn-offer-draw', 'Draw', '½', onOfferDraw, 'Offer a draw') : null,
     claimDraw: caps.claimDraw ? button('btn-claim-draw', 'Claim', '⚖', onClaimDraw, 'Claim a draw by threefold repetition or the fifty-move rule') : null,
     newGame: button('btn-new-game', 'New', '↻', onNewGameClick, 'Start a new game'),
+    hint: caps.hint ? button('btn-hint', 'Hint', '💡', () => Promise.resolve(session.hint()).catch(() => {}), 'Show a hint (press twice to reveal the move)') : null,
+    takeback: caps.takeback ? button('btn-takeback', 'Undo', '↶', () => session.takeback(), 'Take back your last move') : null,
     flip: button('btn-flip', 'Flip', '⇅', onFlip, 'Flip the board'),
     copyPgn: button('btn-copy-pgn', 'PGN', '⧉', () => copyText(pgn(), 'PGN'), 'Copy the game as PGN'),
     copyFen: button('btn-copy-fen', 'FEN', '⧉', () => copyText(rules.fen(), 'FEN'), 'Copy the current position as FEN'),
   };
   const controls = h('div', { class: 'controls' },
+    caps.hint || caps.takeback ? h('div', { class: 'control-group', role: 'group', 'aria-label': 'Training' }, [btn.hint, btn.takeback].filter(Boolean)) : null,
     h('div', { class: 'control-group', role: 'group', 'aria-label': 'Game actions' }, [btn.resign, btn.offerDraw, btn.claimDraw, btn.newGame].filter(Boolean)),
     h('div', { class: 'control-group', role: 'group', 'aria-label': 'Board and export' }, btn.flip, btn.copyPgn, btn.copyFen));
 
@@ -296,7 +299,9 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
       board.highlight({
         lastMove: history.at(-1) ?? null,
         check: !status.over || status.reason === 'checkmate' ? (rules.inCheck() ? kingSquare(rules.board(), rules.turn()) : null) : null,
+        hint: session.hintSquare?.() ?? null,
       });
+      board.setArrows(session.arrows?.() ?? []);
       board.setInput(status.over ? null : session.inputColor());
     } else {
       board.cancelInput();
@@ -304,6 +309,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
       const fen = reviewPly === 0 ? history[0].before : history[reviewPly - 1].after;
       board.setPosition(fen, animate);
       board.highlight({ lastMove: history[reviewPly - 1] ?? null });
+      board.setArrows([]);
     }
 
     banner.classList.toggle('over', status.over);
@@ -322,6 +328,8 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
 
     const claimable = rules.claimableDraws();
     if (btn.resign) btn.resign.disabled = status.over;
+    if (btn.hint) btn.hint.disabled = status.over || session.inputColor() === null;
+    if (btn.takeback) btn.takeback.disabled = !(session.canTakeback?.() ?? rules.history().length > 0);
     if (btn.offerDraw) btn.offerDraw.disabled = status.over || rules.drawOffer() === session.actingColor();
     if (btn.claimDraw) {
       btn.claimDraw.disabled = status.over || !claimable.length;
@@ -353,6 +361,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
         h('p', { class: 'result-score', testid: 'game-result' }, status.result),
         h('p', { class: 'result-reason', testid: 'game-reason' }, describeResult(status)),
         RULE_NOTES[status.reason] ? h('p', { class: 'muted rule-note' }, RULE_NOTES[status.reason]) : null,
+        session.resultDetails?.() ?? null,
       ],
       actions: [
         { label: 'Copy PGN', keepOpen: true, onClick: () => copyText(pgn(), 'PGN') },
