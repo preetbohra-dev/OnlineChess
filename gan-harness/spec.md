@@ -178,9 +178,18 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - Test hook: `?engine=fast` (depth 6).
 - Every playout is validated in `tests/engine`: Stockfish playing the player's side reaches the goal against Stockfish.
 
+### Slice 9: Training — openings trainer, opening names in games, bot repertoires
+
+- **Hub:** Training → `opt-openings` → `#/openings`. Two groups, `openings-w` and `openings-b`, with 15 cards (`opening-<id>`; class `done` once a line has been practised to the end).
+- **Trainer:** `#/openings/<id>` (`?mode=practice` opens the Practice tab). Tabs `tab-learn` / `tab-practice`.
+  - Learn: the summary and key ideas, then every move of the line with a note (`opening-text`, `btn-prev`, `btn-next`, `btn-to-practice`). An arrow shows the next move.
+  - Practice: play your side from memory; the other side replies from the line. A wrong move is refused; the first miss highlights the piece, the second shows an arrow. The end shows the number of mistakes, `btn-play-it-out` (continue the position against Rookie Rex) and `btn-next-opening`.
+- **Opening badge** in every game (`opening-name`, e.g. "B10 · Caro-Kann Defence"), recognised by position so transpositions count; about 100 named openings. After the game, `opening-learn` links to the matching trainer opening. Copied PGN includes ECO and Opening headers.
+- **Bot repertoires:** Pip (Novice) tries early queen attacks; Rex (Amateur) plays gambits and traps (Fried Liver, Evans, Stafford, Danish, King's Gambit); the stronger bots play the main lines of the trainer openings.
+- Every taught move is engine-checked (no worse than Stockfish's best by more than 0.9 pawns).
+
 ## Not built yet (score N/A)
 
-- Slice 9: openings trainer, opening detection, richer bot opening books.
 - Slice 10: retention (profile, ranks, records, achievements, daily puzzle, home dashboard).
 
 ## How to run for evaluation
