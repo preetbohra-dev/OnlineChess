@@ -2,21 +2,36 @@
 // on behalf of the player whose turn it is.
 import { createGame, otherColor } from '../core/rules.js';
 import { createEmitter } from '../core/events.js';
+import { attachClock } from './clocked.js';
 
-export function createLocalSession({ fen } = {}) {
+// timeControl: { initialMs, incrementMs } from core/clock.js parseTimeControl, or null for no clock.
+export function createLocalSession({ fen, timeControl = null, now } = {}) {
   const rules = createGame({ fen });
   const events = createEmitter();
-  const changed = (detail) => events.emit('change', detail);
+  const timing = attachClock(rules, timeControl, { now });
+  const changed = (detail) => {
+    timing?.settle();
+    events.emit('change', detail);
+  };
+
+  // FIDE 6.9: the flagged player loses unless the opponent cannot possibly checkmate.
+  function flag(color) {
+    const r = rules.flag(color);
+    if (r.ok) changed({ action: 'flag', color });
+    return r;
+  }
 
   return {
     kind: 'local',
     title: 'Pass & Play',
     rules,
+    clock: timing?.clock ?? null,
+    flag,
     players: {
       w: { name: 'White', avatar: '♔' },
       b: { name: 'Black', avatar: '♚' },
     },
-    capabilities: { resign: true, offerDraw: true, claimDraw: true, flip: true },
+    capabilities: { resign: true, offerDraw: true, claimDraw: true, flip: true, autoFlip: true },
     on: events.on,
 
     // Pass-and-play: the board accepts input for whoever is to move.
@@ -33,8 +48,16 @@ export function createLocalSession({ fen } = {}) {
     },
 
     submitMove(move) {
+      const mover = rules.turn();
+      if (timing?.expired(mover)) {
+        flag(mover);
+        return { ok: false, reason: 'flag' };
+      }
       const result = rules.move(move);
-      if (result.ok) changed({ move: result });
+      if (result.ok) {
+        timing?.moved(mover);
+        changed({ move: result });
+      }
       return result;
     },
     resign(color = rules.turn()) {

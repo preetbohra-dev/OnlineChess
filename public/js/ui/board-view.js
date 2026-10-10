@@ -19,7 +19,7 @@ export class BoardView {
   #inputColor = null;
   #destroyed = false;
 
-  constructor(el, { fen, orientation = 'w', legalMoves, onMove, choosePromotion, showLegalDots = () => true, animationMs = 200 }) {
+  constructor(el, { fen, orientation = 'w', legalMoves, onMove, choosePromotion, showLegalDots = () => true, animationMs = 200, showCoordinates = true }) {
     this.legalMoves = legalMoves;
     this.onMove = onMove;
     this.choosePromotion = choosePromotion;
@@ -31,7 +31,7 @@ export class BoardView {
       style: {
         cssClass: 'oc',
         borderType: BORDER_TYPE.none,
-        showCoordinates: true,
+        showCoordinates,
         pieces: { file: 'pieces/staunty.svg' },
         animationDuration: animationMs,
       },
@@ -86,6 +86,10 @@ export class BoardView {
   async #promote(from, to, color) {
     const piece = await this.choosePromotion(color);
     if (piece && !this.#destroyed) this.onMove({ from, to, promotion: piece });
+  }
+
+  setAnimationMs(ms) {
+    this.board.props.style.animationDuration = ms;
   }
 
   setPosition(fen, animated = true) {

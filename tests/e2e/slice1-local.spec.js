@@ -5,6 +5,7 @@ test('home → Normal → Against Person → Same device opens a fresh game', as
   await page.getByTestId('mode-normal').click();
   await expect(page.getByTestId('opt-computer')).toBeVisible();
   await page.getByTestId('opt-local').click();
+  await page.getByTestId('btn-start').click();
   await expectFen(page, START_FEN);
   await expect(page.getByTestId('status-banner')).toContainText('White to move');
 });

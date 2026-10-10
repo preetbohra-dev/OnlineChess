@@ -32,6 +32,13 @@ export async function clickSquare(page, square) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
+// Opens the settings dialog and waits for its entry animation to finish.
+export async function openSettings(page) {
+  await page.getByTestId('btn-settings').click();
+  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await page.waitForTimeout(250);
+}
+
 export async function move(page, from, to) {
   await clickSquare(page, from);
   await clickSquare(page, to);
