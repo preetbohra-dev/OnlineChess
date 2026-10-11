@@ -436,3 +436,32 @@ html { scroll-padding-top: 72px; }
   .topnav { gap: 0; }
   .topnav a { padding: 6px 7px; }
 }
+
+/* Game review */
+.review-panel { display: flex; flex-direction: column; gap: 12px; }
+.review-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.acc-card { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.acc-card.you { border-color: var(--accent); }
+.acc-card strong { font-size: 1.6rem; }
+.acc-counts { display: flex; flex-wrap: wrap; gap: 6px; font-size: .8rem; color: var(--muted); }
+.eval-graph { width: 100%; height: 70px; border-radius: 8px; cursor: pointer; display: block; }
+.eg-bg { fill: #2b2b2b; }
+.eg-white { fill: #e9e6df; }
+.eg-mid { stroke: var(--muted); stroke-width: .5; stroke-dasharray: 3 3; }
+.eg-key { fill: var(--danger); }
+.eg-cursor { stroke: var(--accent); stroke-width: 2; }
+.key-moments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.review-current { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.review-current p { margin: 0; }
+.review-nav { display: flex; gap: 6px; }
+.review-moves { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; max-height: 220px; overflow: auto; }
+.rv-move { font: inherit; padding: 3px 7px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--text); cursor: pointer; }
+.rv-move.current { background: var(--accent); color: var(--accent-ink); }
+.rv-move[data-grade="blunder"], .rv-move[data-grade="mistake"] { color: var(--danger); }
+.rv-move.current[data-grade] { color: var(--accent-ink); }
+.game-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.game-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; }
+.game-row:hover { border-color: var(--accent); }
+.game-row-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.game-row-result { font-weight: 700; }
+@media (max-width: 900px) { .game.review .review-panel { order: 2; } .game.review .crumbs { order: 0; } }

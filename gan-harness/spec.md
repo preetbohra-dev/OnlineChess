@@ -198,9 +198,23 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - **Celebrations:** "+N XP" toasts, achievement and rank-up toasts, and confetti for wins, unlocks, rank-ups and the daily puzzle (skipped with reduced motion; `__oc.confetti` counts bursts).
 - **Accessibility:** progress bar with ARIA values, locked/unlocked state in text, records as a table with headers; no horizontal scroll at 360px.
 
+### Slice 11: game review (Plan 2, docs/PLAN-2.md)
+
+- Every finished game (computer, coached, online, pass and play) is saved locally; the last 50 are listed at `#/games` (rows `game-<id>`, with your accuracy once reviewed). The dashboard has a `dash-games` card.
+- The result window has **Review game** (`btn-review`) → `#/review/<id>` (test hook `?engine=fast`).
+- The review analyses every position with a full-strength engine (progress bar `review-progress`), then shows:
+  - accuracy per side (`accuracy-w`, `accuracy-b`) with grade counts;
+  - a clickable evaluation graph;
+  - up to three key moments (`key-<ply>`);
+  - a move list with grade marks (`rv-move-<ply>`, `data-grade`);
+  - the coach's explanation of the selected move (`review-current`) with arrows;
+  - navigation buttons (`rv-first/prev/next/last`) and the arrow keys.
+- `review-panel` exposes `data-state` (analysing/ready/failed) and `data-ply`. Reviews are cached, so reopening is instant.
+- **Retry** (`btn-retry`) on your inaccuracy, mistake or blunder: the board returns to the position before it; find a move that is not a mistake (judged by the engine) (`retry-feedback`), then `btn-retry-done`.
+
 ## Not built yet (score N/A)
 
-- Nothing: all ten slices are built.
+- Plan 2 slices 12–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 

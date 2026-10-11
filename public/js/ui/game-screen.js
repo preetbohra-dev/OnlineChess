@@ -19,6 +19,7 @@
 //   destroy()              release resources; the screen owns the session and calls it on teardown
 import { h, fill, pieceGlyph, COLOR_NAME } from './dom.js';
 import { detectOpening } from '../core/openings.js';
+import { savedGameId } from '../store/games.js';
 import { BoardView } from './board-view.js';
 import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
@@ -387,6 +388,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
         session.resultDetails?.() ?? null,
       ],
       actions: [
+        savedGameId(session) ? { label: 'Review game', testid: 'btn-review', onClick: () => { location.hash = `#/review/${savedGameId(session)}`; } } : null,
         { label: 'Copy PGN', keepOpen: true, onClick: () => copyText(pgn(), 'PGN') },
         { label: 'Close', testid: 'btn-close-result' },
         onNewGame ? { label: 'Play again', testid: 'btn-play-again', primary: true, onClick: () => onNewGame() } : null,
