@@ -6,7 +6,9 @@ import {
 
 const win = (winner, reason = 'checkmate') => ({ over: true, winner, reason, result: winner === 'w' ? '1-0' : '0-1' });
 const draw = { over: true, winner: null, reason: 'stalemate', result: '1/2-1/2' };
-const NOW = new Date(2026, 9, 11, 12);
+// A week whose quests (coached games, reviews, retries) none of these tests completes, so quest
+// XP never mixes into the amounts asserted here.
+const NOW = new Date(2026, 11, 29, 12);
 
 test('ranks rise with XP and report progress to the next one', () => {
   assert.equal(rankFor(0).id, 'pawn');
@@ -75,7 +77,7 @@ test('very short games earn no XP and no accuracy credit, unless they end in che
   const local = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 2 }, { now: NOW });
   assert.equal(local.xp, 0);
   const quickMate = applyEvent(emptyProfile(), { type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId: 'novice', plies: 7 }, { now: NOW });
-  assert.equal(quickMate.xp, 20);
+  assert.equal(quickMate.xp, 20 + 20, 'win XP plus two campaign stars');
   const longGame = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 40 }, { now: NOW });
   assert.equal(longGame.xp, XP.local);
 });
@@ -90,21 +92,21 @@ test('lessons and openings count toward their achievements', () => {
 });
 
 test('daily puzzle: one reward per day, streaks grow on consecutive days and reset after a gap', () => {
-  let r = applyEvent(emptyProfile(), { type: 'daily', day: '2026-10-09' });
+  let r = applyEvent(emptyProfile(), { type: 'daily', day: '2026-10-09' }, { now: NOW });
   assert.equal(r.xp, 30);
   assert.equal(r.profile.daily.streak, 1);
-  const same = applyEvent(r.profile, { type: 'daily', day: '2026-10-09' });
+  const same = applyEvent(r.profile, { type: 'daily', day: '2026-10-09' }, { now: NOW });
   assert.equal(same.xp, 0);
-  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-10' });
-  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-11' });
+  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-10' }, { now: NOW });
+  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-11' }, { now: NOW });
   assert.equal(r.profile.daily.streak, 3);
   assert.equal(r.xp, 30 + 2 * 5);
   assert.ok(r.unlocked.some((a) => a.id === 'streak-3'));
-  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-14' });
+  r = applyEvent(r.profile, { type: 'daily', day: '2026-10-14' }, { now: NOW });
   assert.equal(r.profile.daily.streak, 1);
   assert.equal(r.profile.daily.best, 3);
   // A clock moved backwards earns nothing and changes nothing.
-  const back = applyEvent(r.profile, { type: 'daily', day: '2026-10-01' });
+  const back = applyEvent(r.profile, { type: 'daily', day: '2026-10-01' }, { now: NOW });
   assert.equal(back.xp, 0);
   assert.equal(back.profile.daily.last, '2026-10-14');
 });
@@ -143,4 +145,61 @@ test('damaged or old profiles are repaired, not trusted', () => {
 test('achievement ids are unique and there are at least twelve', () => {
   assert.ok(ACHIEVEMENTS.length >= 12);
   assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, ACHIEVEMENTS.length);
+});
+
+test('puzzles and Puzzle Rush earn XP and achievements', () => {
+  let r = applyEvent(emptyProfile(), { type: 'puzzle', solved: true, rating: 1520 }, { now: NOW });
+  assert.equal(r.xp, XP.puzzle);
+  assert.ok(r.unlocked.some((a) => a.id === 'puzzle-1500'));
+  r = applyEvent(r.profile, { type: 'puzzle', solved: false, rating: 1490 }, { now: NOW });
+  assert.equal(r.xp, 0);
+  assert.equal(r.profile.puzzles.bestRating, 1520);
+  r = applyEvent(r.profile, { type: 'rush', score: 16 }, { now: NOW });
+  assert.equal(r.xp, 32);
+  assert.ok(r.unlocked.some((a) => a.id === 'rush-15'));
+  assert.equal(applyEvent(r.profile, { type: 'rush', score: 40 }, { now: NOW }).xp, XP.rushMax);
+});
+
+test('campaign stars: a win and a quick win from an open opponent; clean from a review; locked opponents give none', () => {
+  const won = (personaId, plies) => ({ type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId, plies });
+  let r = applyEvent(emptyProfile(), won('novice', 40), { now: NOW });
+  assert.deepEqual(r.stars.map((s) => s.id), ['win', 'fast']);
+  assert.equal(r.xp, 20 + 20);
+  r = applyEvent(r.profile, { type: 'clean', personaId: 'novice' }, { now: NOW });
+  assert.deepEqual(r.stars, [{ personaId: 'novice', id: 'clean' }]);
+  assert.equal(r.xp, 10);
+  // No blunder-free star without a credited win first (e.g. an old game reviewed later).
+  assert.deepEqual(applyEvent(r.profile, { type: 'clean', personaId: 'amateur' }, { now: NOW }).stars, []);
+  // Magnus is locked until Professor Hoot is beaten.
+  const locked = applyEvent(r.profile, won('grandmaster', 40), { now: NOW });
+  assert.deepEqual(locked.stars, []);
+  assert.equal(locked.profile.bots.grandmaster.w, 1, 'the win still counts in the record');
+  r = applyEvent(r.profile, won('amateur', 200), { now: NOW });
+  assert.deepEqual(r.stars.map((s) => s.id), ['win']);
+});
+
+test('five stars unlock Rising star', () => {
+  let p = emptyProfile();
+  const ids = [];
+  for (const persona of ['novice', 'amateur']) {
+    const r = applyEvent(p, { type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId: persona, plies: 30 }, { now: NOW });
+    p = r.profile;
+    ids.push(...r.unlocked.map((a) => a.id));
+  }
+  const r = applyEvent(p, { type: 'clean', personaId: 'novice' }, { now: NOW });
+  ids.push(...r.unlocked.map((a) => a.id));
+  assert.ok(ids.includes('stars-5'));
+});
+
+test('weak-spot answers earn XP; ten mastered cards unlock Weak no more', () => {
+  let p = emptyProfile();
+  let ids = [];
+  for (let i = 0; i < 10; i++) {
+    const r = applyEvent(p, { type: 'weakspot', right: true, mastered: true }, { now: NOW });
+    assert.equal(r.xp, XP.weakspot);
+    p = r.profile;
+    ids = ids.concat(r.unlocked.map((a) => a.id));
+  }
+  assert.ok(ids.includes('weak-10'));
+  assert.equal(applyEvent(p, { type: 'weakspot', right: false }, { now: NOW }).xp, 0);
 });

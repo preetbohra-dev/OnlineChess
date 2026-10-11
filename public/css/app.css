@@ -330,7 +330,8 @@ html { scroll-padding-top: 72px; }
 
 /* ------------------------------------------------------------------ modal */
 .modal-backdrop {
-  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; align-items: safe center; padding: 16px;
+  overflow-y: auto; overscroll-behavior: contain; /* a dialog taller than the screen scrolls */
   background: rgb(5 8 12 / .55); opacity: 0; transition: opacity .15s ease;
 }
 .modal-backdrop.show { opacity: 1; }
@@ -436,3 +437,83 @@ html { scroll-padding-top: 72px; }
   .topnav { gap: 0; }
   .topnav a { padding: 6px 7px; }
 }
+
+/* Game review */
+.review-panel { display: flex; flex-direction: column; gap: 12px; }
+.review-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.acc-card { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.acc-card.you { border-color: var(--accent); }
+.acc-card strong { font-size: 1.6rem; }
+.acc-counts { display: flex; flex-wrap: wrap; gap: 6px; font-size: .8rem; color: var(--muted); }
+.eval-graph { width: 100%; height: 70px; border-radius: 8px; cursor: pointer; display: block; }
+.eg-bg { fill: #2b2b2b; }
+.eg-white { fill: #e9e6df; }
+.eg-mid { stroke: var(--muted); stroke-width: .5; stroke-dasharray: 3 3; }
+.eg-key { fill: var(--danger); }
+.eg-cursor { stroke: var(--accent); stroke-width: 2; }
+.key-moments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.review-current { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.review-current p { margin: 0; }
+.review-nav { display: flex; gap: 6px; }
+.review-moves { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; max-height: 220px; overflow: auto; }
+.rv-move { font: inherit; padding: 3px 7px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--text); cursor: pointer; }
+.rv-move.current { background: var(--accent); color: var(--accent-ink); }
+.rv-move[data-grade="blunder"], .rv-move[data-grade="mistake"] { color: var(--danger); }
+.rv-move.current[data-grade] { color: var(--accent-ink); }
+.game-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.game-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; }
+.game-row:hover { border-color: var(--accent); }
+.game-row-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.game-row-result { font-weight: 700; }
+@media (max-width: 900px) { .game.review .review-panel { order: 2; } .game.review .crumbs { order: 0; } }
+
+/* Puzzles and Rush */
+.puzzle-rating { margin: 0; }
+.rating-change { font-weight: 700; margin-left: 4px; }
+.rating-change.up { color: var(--accent); }
+.rating-change.down { color: var(--danger); }
+.theme-filter summary { cursor: pointer; color: var(--muted); }
+.theme-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rush-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 1.1rem; }
+.rush-timer { font: 700 1.6rem var(--font-mono, ui-monospace, monospace); }
+.rush-strikes { letter-spacing: 4px; color: var(--danger); }
+.small { font-size: .8rem; }
+
+/* Campaign and cosmetics */
+.campaign-path { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; position: relative; }
+.campaign-stop { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
+.campaign-stop.locked { opacity: .65; }
+.stop-avatar { font-size: 2rem; line-height: 1; width: 44px; text-align: center; }
+.stop-info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 160px; min-width: 0; }
+.campaign-stop > .muted.small { flex-basis: 100%; }
+.stop-stars { font-size: 1.2rem; letter-spacing: 2px; }
+.star { color: var(--muted); }
+.star.on { color: var(--gold); }
+.setting-row select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); max-width: 55%; }
+
+/* Weekly quests */
+.dash-quests { grid-column: 1 / -1; }
+.quest-list { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-direction: column; gap: 8px; }
+.quest { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.quest .xp-bar { grid-column: 1 / -1; height: 6px; }
+.quest.done .quest-text { color: var(--muted); }
+
+/* Install and update banners */
+.update-banner { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 210; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--surface-3); border: 1px solid var(--accent); box-shadow: var(--shadow); width: min(520px, calc(100% - 32px)); }
+.update-banner span { flex: 1; min-width: 180px; }
+.dash-install { font: inherit; text-align: left; cursor: pointer; }
+
+/* Account */
+.account-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.form-error { margin: 0; color: var(--danger); }
+.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+
+/* Weekly challenge */
+.puzzle-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.puzzle-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.puzzle-tile.right { border-color: var(--accent); }
+.puzzle-tile.wrong { border-color: var(--danger); opacity: .8; }
+.weekly-solver { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+.weekly-board { max-width: 480px; }
+.records tr.me { background: color-mix(in srgb, var(--accent) 14%, transparent); }

@@ -18,11 +18,13 @@ export default defineConfig({
     // PW_CHANNEL=chrome runs against an installed Google Chrome instead of the bundled Chromium.
     channel: process.env.PW_CHANNEL || undefined,
     launchOptions: { timeout: 30_000 },
+    // The app installs a service worker that caches ~4 MB; only the offline tests need it.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: 'node server/index.js',
     // Every test browser connects from 127.0.0.1, so lift the per-address abuse limits.
-    env: { PORT: String(PORT), ROOMS_PER_ADDRESS: '10000', ROOM_CREATES_PER_HOUR: '10000', WS_CONNECT_BURST: '10000', WS_CONNECTIONS_PER_ADDRESS: '10000' },
+    env: { PORT: String(PORT), DB_PATH: ':memory:', PUSH: 'dry', VAPID_FILE: 'test-results/.vapid-e2e.json', ROOMS_PER_ADDRESS: '10000', ROOM_CREATES_PER_HOUR: '10000', WS_CONNECT_BURST: '10000', WS_CONNECTIONS_PER_ADDRESS: '10000' },
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: false, // always test the current code, never a stale dev server
   },

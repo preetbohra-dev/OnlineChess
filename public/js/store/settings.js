@@ -1,6 +1,7 @@
 // User preferences: validated on load so stale or hand-edited values can never break the app.
 import { createEmitter } from '../core/events.js';
 import { appStore } from './storage.js';
+import { BOARD_THEMES, PIECE_SETS } from '../data/cosmetics.js';
 
 export const DEFAULT_SETTINGS = Object.freeze({
   version: 1,
@@ -11,11 +12,15 @@ export const DEFAULT_SETTINGS = Object.freeze({
   animation: 'normal',
   autoFlip: false,
   taunts: true,
+  boardTheme: 'wood',
+  pieceSet: 'staunty',
 });
 
 const ALLOWED = {
   theme: ['system', 'dark', 'light'],
   animation: ['off', 'fast', 'normal'],
+  boardTheme: BOARD_THEMES.map((t) => t.id),
+  pieceSet: PIECE_SETS.map((t) => t.id),
 };
 
 export const ANIMATION_MS = { off: 0, fast: 110, normal: 220 };
