@@ -10,11 +10,19 @@ Play, learn and train chess in the browser — from your first game to grandmast
   - Lessons on four levels: the rules and basic mates (Novice), tactics (Amateur), endgames played out against Stockfish (Pro), and famous combinations and studies (Grand Master).
   - An openings trainer: 15 classic openings, each explained move by move and practised from memory.
   - A rules handbook covering every FIDE rule.
-- **Progress**: XP and ranks, records against every computer opponent, 14 achievements, a daily puzzle with a streak, and a home dashboard that shows what to do next.
+  - Rated puzzles: about 5,000 real puzzles from the Lichess database, served near your puzzle rating (Glicko-2), with theme filters; and Puzzle Rush (three minutes, three strikes).
+- **Game review** after every game: accuracy, an evaluation graph, key moments, and "retry" to find a better move where you went wrong.
+- **Share and challenge**: share a win or a Puzzle Rush score as a picture with a link that challenges a friend to beat it.
+- **Weekly challenge**: ten puzzles and three games, the same for everyone each week, with a leaderboard (accounts only).
+- **Daily reminders**: signed-in players can get one notification a day, at a chosen hour, when the daily puzzle is still unsolved.
+- **Weak spots**: your own mistakes come back as puzzles on a spaced-repetition schedule until you have them mastered.
+- **Progress**: XP and ranks, records against every computer opponent, a campaign with three stars per opponent, 22 achievements, weekly quests that earn streak freezes, board themes and piece sets unlocked by rank, a daily puzzle with a streak, and a home dashboard that shows what to do next.
 
 All FIDE Laws of Chess are enforced. That includes castling restrictions, en passant and promotion. It also covers threefold, fivefold, fifty and seventy-five move draws, insufficient material, and the timeout rule. See [docs/RULES-IMPL.md](docs/RULES-IMPL.md).
 
-Every game shows the opening being played. Progress is stored in the browser (localStorage); there are no accounts, so XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
+It installs as an app (home screen or desktop) and works offline, except online play. The offline copy is versioned from the files the server sees at start-up, so restart the server after deploying new files.
+
+Every game shows the opening being played. Progress is stored in the browser; an optional account (username and password) keeps it safe and syncs it across devices. XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
 
 ## Run
 
@@ -33,10 +41,14 @@ Environment variables:
 |----------|---------|---------|
 | `PORT` | `3200` | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` allows other devices on your network |
+| `DB_PATH` | `~/.jodhpur-studio/data/chess.db` | Accounts database (SQLite). `off` disables accounts; `:memory:` keeps them in memory (tests). A daily backup goes to `backups/` beside it. |
+| `PUSH` | (on) | Daily reminders over Web Push (needs accounts). `off` disables them; `dry` sends nothing (tests). |
+| `VAPID_FILE` | `~/.jodhpur-studio/secrets/chess-vapid.json` | Web Push keys, created on first start (mode 600). |
+| `VAPID_SUBJECT` | `https://<first ALLOWED_HOSTS>` | Contact for push services (`mailto:` or an https URL). |
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
 
-Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md).
+Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.
 
 ## Test
 
@@ -75,3 +87,5 @@ Third-party components:
 - [cm-chessboard](https://github.com/shaack/cm-chessboard): MIT
 - [ws](https://github.com/websockets/ws): MIT
 - [Stockfish](https://stockfishchess.org) via [stockfish.js](https://github.com/nmrugg/stockfish.js): GPL-3.0
+- App icons: `node scripts/icons.mjs` renders them from the knight logo (needs Playwright's Chrome).
+- Puzzles: the [Lichess puzzle database](https://database.lichess.org/#puzzles), CC0. `npm run puzzles` rebuilds `public/data/puzzles.json` (needs the `zstd` command-line tool).

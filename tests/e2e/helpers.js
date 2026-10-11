@@ -7,7 +7,13 @@ export const test = base.extend({
   page: async ({ page }, use) => {
     const errors = [];
     page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-    page.on('console', (msg) => { if (msg.type() === 'error') errors.push(`console: ${msg.text()}`); });
+    page.on('console', (msg) => {
+      if (msg.type() !== 'error') return;
+      // A rejected sign-in or a missing session is an expected API answer (401/409/429), which
+      // Chrome still logs as a failed resource load.
+      if (/Failed to load resource/.test(msg.text()) && /\/api\//.test(msg.location()?.url ?? '')) return;
+      errors.push(`console: ${msg.text()}`);
+    });
     await use(page);
     expect(errors, 'page/console errors').toEqual([]);
   },

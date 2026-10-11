@@ -2,6 +2,7 @@
 // with strict security headers. Rejects traversal, dotfiles, NUL bytes and backslashes.
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildServiceWorker } from './service-worker.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -36,6 +37,8 @@ export const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  // Browsers ignore this over plain http (local development); on the https site it pins https.
+  'Strict-Transport-Security': 'max-age=31536000',
 };
 
 function reply(res, status, extraHeaders = {}) {
@@ -46,8 +49,11 @@ function reply(res, status, extraHeaders = {}) {
 export function createStaticHandler(publicDir) {
   const root = fs.realpathSync(publicDir);
   const inside = (p) => p.startsWith(root + path.sep);
+  // The service worker is generated once at start-up from the files being served.
+  // (Restart the server to publish changed files to installed apps: the version is fixed here.)
+  const serviceWorker = buildServiceWorker(root);
 
-  return async function handleStatic(req, res) {
+  async function handleStatic(req, res) {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
     if (req.method !== 'GET' && req.method !== 'HEAD') return reply(res, 405, { Allow: 'GET, HEAD' });
 
@@ -59,6 +65,11 @@ export function createStaticHandler(publicDir) {
     }
     if (!pathname.startsWith('/') || pathname.includes('\0') || pathname.includes('\\')) return reply(res, 400);
     if (pathname.split('/').some((segment) => segment.startsWith('.'))) return reply(res, 404);
+
+    if (pathname === '/sw.js') {
+      res.writeHead(200, { 'Content-Type': MIME['.js'], 'Content-Length': Buffer.byteLength(serviceWorker.body), 'Cache-Control': 'no-cache' });
+      return res.end(req.method === 'HEAD' ? undefined : serviceWorker.body);
+    }
 
     const requested = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!inside(requested)) return reply(res, 404);
@@ -79,5 +90,7 @@ export function createStaticHandler(publicDir) {
     });
     if (req.method === 'HEAD') return res.end();
     fs.createReadStream(real).on('error', () => res.destroy()).pipe(res);
-  };
+  }
+  handleStatic.serviceWorker = { version: serviceWorker.version, files: serviceWorker.assets.length };
+  return handleStatic;
 }

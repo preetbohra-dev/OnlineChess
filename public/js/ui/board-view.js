@@ -3,6 +3,7 @@
 import { Chessboard, COLOR, INPUT_EVENT_TYPE, BORDER_TYPE } from '../../vendor/cm-chessboard/src/Chessboard.js';
 import { Markers } from '../../vendor/cm-chessboard/src/extensions/markers/Markers.js';
 import { Arrows, ARROW_TYPE } from '../../vendor/cm-chessboard/src/extensions/arrows/Arrows.js';
+import { currentPieceFile } from './cosmetics.js';
 
 const MARK = {
   selected: { class: 'marker-selected', slice: 'markerSquare' },
@@ -28,11 +29,14 @@ export class BoardView {
       position: fen,
       orientation: toBoardColor(orientation),
       assetsUrl: '/vendor/cm-chessboard/assets/',
+      // Reference the piece sprite file directly: the inline cache holds one sprite per page,
+      // which would keep the old piece set after the player picks another.
+      assetsCache: false,
       style: {
         cssClass: 'oc',
         borderType: BORDER_TYPE.none,
         showCoordinates,
-        pieces: { file: 'pieces/staunty.svg' },
+        pieces: { file: currentPieceFile() },
         animationDuration: animationMs,
       },
       extensions: [{ class: Markers, props: { autoMarkers: MARK.selected } }, { class: Arrows }],

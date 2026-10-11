@@ -8,7 +8,9 @@ import { completedLessons, markLessonComplete } from '../store/progress.js';
 import { createPuzzle } from '../core/puzzle.js';
 import { createPlayout } from '../core/playout.js';
 import { dailyPuzzle, dailyTier } from '../core/daily.js';
-import { dayKey, currentStreak } from '../core/progression.js';
+import { parseRow, toLesson, dailyFromLibrary } from '../core/puzzle-library.js';
+import { loadLibrary, loadPuzzleStats, markSeen, pinDaily } from '../store/puzzle-stats.js';
+import { dayKey, currentStreak, previousDay } from '../core/progression.js';
 import { loadProfile } from '../store/profile.js';
 import { bus } from '../core/events.js';
 import { createGame } from '../core/rules.js';
@@ -38,32 +40,55 @@ export function renderLearnHub(outlet) {
 
 const KIND_LABEL = { read: 'Lesson', puzzle: 'Puzzle', playout: 'vs Stockfish' };
 
-// The daily puzzle: one puzzle per calendar day; solving it keeps your streak alive.
+// The daily puzzle: one puzzle per calendar day from the puzzle library, near your puzzle rating;
+// solving it keeps your streak alive. Without the library (offline), a lesson puzzle stands in.
 export function renderDaily(outlet) {
   const day = dayKey();
-  const lesson = dailyPuzzle(day, dailyTier(loadProfile().xp));
-  const solvedToday = () => loadProfile().daily.last === day;
+  const page = h('div', { class: 'page menu' }, h('h1', {}, 'Daily puzzle'), h('p', { class: 'muted', testid: 'puzzles-loading' }, 'Loading today\'s puzzle…'));
+  outlet.append(page);
+  let cleanup = () => {};
+  let destroyed = false;
+  loadLibrary()
+    .then((rows) => {
+      const puzzles = rows.map(parseRow);
+      const id = pinDaily(day, (rating) => dailyFromLibrary(puzzles, day, rating).id);
+      return toLesson(puzzles.find((p) => p.id === id) ?? dailyFromLibrary(puzzles, day, loadPuzzleStats().rating));
+    })
+    .catch(() => dailyPuzzle(day, dailyTier(loadProfile().xp)))
+    .then((lesson) => {
+      if (destroyed) return;
+      page.remove();
+      cleanup = mountDaily(outlet, lesson, day);
+    });
+  return () => { destroyed = true; cleanup(); };
+}
+
+function mountDaily(outlet, lesson, day) {
+  const library = lesson.level === 'library';
   const boardHost = h('div', { class: 'board-host lesson-board' });
   const panel = h('div', { class: 'lesson-panel' });
   const streakNote = h('p', { class: 'muted daily-streak', testid: 'daily-streak' });
   const showStreak = () => {
-    const streak = currentStreak(loadProfile(), day);
-    streakNote.textContent = solvedToday()
-      ? `Solved today · 🔥 ${streak}-day streak. Come back tomorrow for a new puzzle.`
-      : streak ? `🔥 ${streak}-day streak — solve today's puzzle to keep it going.` : 'Solve one puzzle a day to build a streak.';
+    const profile = loadProfile();
+    const streak = currentStreak(profile, day);
+    const frozen = streak && profile.daily.last !== previousDay(day);
+    if (profile.daily.last === day) streakNote.textContent = `Solved today · 🔥 ${streak}-day streak. Come back tomorrow for a new puzzle.`;
+    else if (!streak) streakNote.textContent = 'Solve one puzzle a day to build a streak.';
+    else streakNote.textContent = `🔥 ${streak}-day streak — solve today's puzzle to keep it going.${frozen ? ' 🧊 A streak freeze will cover the missed day.' : ''}`;
   };
-  outlet.append(h('div', { class: 'game lesson', testid: 'daily', dataset: { lesson: lesson.id } },
+  outlet.append(h('div', { class: 'game lesson', testid: 'daily', dataset: { lesson: lesson.id, source: library ? 'library' : 'lessons' } },
     h('div', { class: 'game-board-col' }, boardHost),
     h('aside', { class: 'game-side' },
-      h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ` / Daily puzzle · ${day}`),
-      h('h1', { class: 'game-title' }, `Daily puzzle: ${lesson.title}`),
+      h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ` / Daily puzzle · ${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`),
+      h('h1', { class: 'game-title' }, library ? `Daily puzzle · rated ${lesson.rating}` : `Daily puzzle: ${lesson.title}`),
       streakNote,
       panel)));
   showStreak();
   const homeLink = () => h('a', { class: 'btn btn-primary', href: '#/', testid: 'btn-next-lesson' }, 'Back home');
   return playPuzzle(lesson, boardHost, panel, homeLink, {
     onSolved: () => {
-      markLessonComplete(lesson.id);
+      if (library) markSeen(lesson.id);
+      else markLessonComplete(lesson.id);
       bus.emit('daily:solved', { day: dayKey() }); // the day it was solved, even past midnight
       showStreak();
     },

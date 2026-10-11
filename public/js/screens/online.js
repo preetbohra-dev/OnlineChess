@@ -7,6 +7,7 @@ import { mountGameScreen } from '../ui/game-screen.js';
 import { createOnlineClient } from '../net/online-client.js';
 import { createOnlineSession } from '../sessions/online-session.js';
 import { TIME_CONTROLS } from '../core/clock.js';
+import { currentUser } from '../store/account.js';
 
 const NAME = /^[\p{L}\p{N} _'-]{1,20}$/u;
 const tokenKey = (room) => `oc.room.${room}`;
@@ -30,7 +31,7 @@ function nameField(store) {
     class: 'text-input', testid: 'online-name', type: 'text', maxlength: 20, autocomplete: 'nickname',
     placeholder: 'Your name', 'aria-label': 'Your name', required: true,
   });
-  input.value = store.get('onlineName', '') || '';
+  input.value = store.get('onlineName', '') || currentUser()?.username || '';
   return input;
 }
 

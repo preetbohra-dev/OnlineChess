@@ -51,6 +51,8 @@ export function renderPlayMenu(outlet) {
         optionCard({ testid: 'opt-online', href: '#/play/online/new', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.' }))),
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against the computer'),
+      h('div', { class: 'option-list' },
+        optionCard({ testid: 'opt-campaign', href: '#/campaign', icon: '🗺️', title: 'Campaign', eyebrow: 'Earn stars', text: 'Beat the opponents in order and collect three stars from each.' })),
       h('div', { class: 'option-list', testid: 'opt-computer' },
         PERSONAS.map((p) => optionCard({ testid: `opt-bot-${p.id}`, href: `#/play/bot/new?persona=${p.id}`, icon: p.avatar, eyebrow: `${p.level} · ${p.rating}`, title: p.name, text: p.tagline }))))));
 }
@@ -61,6 +63,10 @@ export function renderTrainMenu(outlet) {
     h('h1', {}, 'Training Mode'),
     h('div', { class: 'option-list' },
       optionCard({ testid: 'opt-coach', href: '#/train/coach', icon: '🧑‍🏫', title: 'Coached game', text: 'Play while a coach grades every move and explains what you missed.' }),
+      optionCard({ testid: 'opt-weekly', href: '#/weekly', icon: '🏆', title: 'Weekly challenge', text: 'Ten puzzles and three games, the same for everyone. Climb the leaderboard.' }),
+      optionCard({ testid: 'opt-puzzles', href: '#/puzzles', icon: '🧩', title: 'Rated puzzles', text: '5,000 real puzzles that adapt to your rating, by theme.' }),
+      optionCard({ testid: 'opt-rush', href: '#/rush', icon: '⚡', title: 'Puzzle Rush', text: 'Three minutes, three strikes. How far can you go?' }),
+      optionCard({ testid: 'opt-weakspots', href: '#/weak-spots', icon: '🎯', title: 'Weak spots', text: 'Your own mistakes come back as puzzles until you have them mastered.' }),
       optionCard({ testid: 'opt-lessons', href: '#/learn', icon: '📚', title: 'Lessons', text: 'From how the pieces move to winning tactics, with puzzles.' }),
       optionCard({ testid: 'opt-openings', href: '#/openings', icon: '📖', title: 'Openings', text: 'Learn the ideas behind 15 classic openings, then practise them from memory.' }),
       optionCard({ testid: 'opt-rules', href: '#/rules', icon: '⚖️', title: 'Rules handbook', text: 'Every rule of chess, explained with diagrams.' }))));
