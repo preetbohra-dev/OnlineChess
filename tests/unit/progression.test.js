@@ -66,6 +66,20 @@ test('online and coached games', () => {
   assert.ok(t.unlocked.some((a) => a.id === 'sharp-eye'));
 });
 
+test('very short games earn no XP and no accuracy credit, unless they end in checkmate', () => {
+  const resign = { over: true, winner: 'b', reason: 'resign', result: '0-1' };
+  const t = applyEvent(emptyProfile(), { type: 'game', kind: 'training', status: resign, color: 'w', accuracy: 95, plies: 3 }, { now: NOW });
+  assert.equal(t.xp, 0);
+  assert.equal(t.profile.training.bestAccuracy, 0);
+  assert.ok(!t.unlocked.some((a) => a.id === 'sharp-eye'));
+  const local = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 2 }, { now: NOW });
+  assert.equal(local.xp, 0);
+  const quickMate = applyEvent(emptyProfile(), { type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId: 'novice', plies: 7 }, { now: NOW });
+  assert.equal(quickMate.xp, 20);
+  const longGame = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 40 }, { now: NOW });
+  assert.equal(longGame.xp, XP.local);
+});
+
 test('lessons and openings count toward their achievements', () => {
   let p = emptyProfile();
   for (let i = 0; i < 10; i++) p = applyEvent(p, { type: 'lesson' }, { now: NOW }).profile;

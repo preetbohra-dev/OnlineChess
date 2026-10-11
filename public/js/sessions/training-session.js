@@ -201,7 +201,8 @@ export function createTrainingSession({ level = 'amateur', playerColor = 'w', fe
           ? h('p', { class: 'coach-headline muted' }, 'Looking at your move…')
           : latest
             ? h('p', { class: 'coach-headline' }, latest.headline)
-            : h('p', { class: 'coach-headline muted' }, rules.turn() === playerColor ? 'Make your move — I\'ll tell you how it went.' : `${persona.name} is thinking…`),
+            : h('p', { class: 'coach-headline muted' }, rules.status().over ? 'Game over — your summary is in the result window.'
+              : rules.turn() === playerColor ? 'Make your move — I\'ll tell you how it went.' : `${persona.name} is thinking…`),
         latest && !pendingPly ? h('ul', { class: 'coach-points' }, latest.points.map((p) => h('li', { dataset: { kind: p.kind } }, p.text))) : null,
         decision ? h('div', { class: 'coach-actions' },
           h('button', { class: 'btn btn-primary btn-small', type: 'button', testid: 'btn-try-again', onClick: () => bot.takeback() }, '↶ Try again'),
