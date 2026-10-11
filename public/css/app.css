@@ -501,3 +501,8 @@ html { scroll-padding-top: 72px; }
 .update-banner { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 210; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--surface-3); border: 1px solid var(--accent); box-shadow: var(--shadow); width: min(520px, calc(100% - 32px)); }
 .update-banner span { flex: 1; min-width: 180px; }
 .dash-install { font: inherit; text-align: left; cursor: pointer; }
+
+/* Account */
+.account-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.form-error { margin: 0; color: var(--danger); }

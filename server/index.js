@@ -1,13 +1,36 @@
-// OnlineChess server: serves public/ and hosts online rooms over WebSocket at /ws.
+// OnlineChess server: serves public/, hosts online rooms over WebSocket at /ws, and (with a
+// database) accounts and cloud sync under /api/.
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { createStaticHandler } from './static.js';
+import fs from 'node:fs';
+import { createStaticHandler, SECURITY_HEADERS } from './static.js';
+import { createApi } from './api.js';
+import { createAccounts } from './auth.js';
+import { openDatabase, DEFAULT_DB_PATH } from './db.js';
 import { createRoomManager } from './rooms.js';
 import { parseClientMessage, MAX_MESSAGE_BYTES } from './protocol.js';
 import { createTokenBucket, createConnectionCounter } from './rate-limit.js';
+
+// A daily snapshot of the accounts database (VACUUM INTO), keeping the newest seven.
+function scheduleBackups(db, dir, keep = 7) {
+  const run = () => {
+    try {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      fs.chmodSync(dir, 0o700);
+      const file = path.join(dir, `chess-${new Date().toISOString().slice(0, 10)}.db`);
+      if (!fs.existsSync(file)) db.backup(file);
+      const old = fs.readdirSync(dir).filter((f) => /^chess-\d{4}-\d{2}-\d{2}\.db$/.test(f)).sort().slice(0, -keep);
+      for (const f of old) fs.rmSync(path.join(dir, f));
+    } catch (err) {
+      console.error('Database backup failed:', err.message);
+    }
+  };
+  run();
+  setInterval(run, 6 * 60 * 60 * 1000).unref(); // checks four times a day; writes once per day
+}
 
 const DEFAULT_PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const HEARTBEAT_MS = 30_000;
@@ -50,14 +73,23 @@ export function createAppServer({
   connectRate = { rate: 1, burst: 10 }, // new sockets per second per address
   unboundTimeoutMs = 30_000, // sockets that never create/join/resume are closed
   allowedHosts = (process.env.ALLOWED_HOSTS ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+  db = null, // accounts database (server/db.js); without it /api/ answers 503
+  authRate,
+  syncRate,
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
+  const accounts = db ? createAccounts(db) : null;
+  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}) });
+  const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
-    serveStatic(req, res).catch(() => {
-      if (!res.headersSent) res.writeHead(500);
-      res.end();
-    });
+    const pathname = req.url.split(/[?#]/)[0];
+    if (pathname.startsWith('/api/')) {
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
+      api(req, res, pathname).catch(() => fail(res));
+      return;
+    }
+    serveStatic(req, res).catch(() => fail(res));
   });
 
   server.headersTimeout = 10_000;
@@ -121,6 +153,7 @@ export function createAppServer({
   const gc = setInterval(() => {
     manager.gc();
     attempts.clear(); // buckets refill within seconds; dropping them bounds memory
+    accounts?.pruneSessions();
   }, GC_MS);
   heartbeat.unref();
   gc.unref();
@@ -128,6 +161,7 @@ export function createAppServer({
   return {
     http: server,
     rooms: manager,
+    accounts,
     serviceWorker: serveStatic.serviceWorker,
     close() {
       clearInterval(heartbeat);
@@ -150,7 +184,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const v = Number.parseInt(process.env[name] ?? '', 10);
     return Number.isFinite(v) && v > 0 ? v : fallback;
   };
+  // Accounts live in SQLite outside the repository; DB_PATH=off runs without them.
+  const dbPath = process.env.DB_PATH || DEFAULT_DB_PATH;
+  const db = dbPath === 'off' ? null : openDatabase(dbPath);
+  if (db && dbPath !== ':memory:') scheduleBackups(db, path.join(path.dirname(dbPath), 'backups'));
   const app = createAppServer({
+    db,
     rooms: { maxRoomsPerAddress: intEnv('ROOMS_PER_ADDRESS', 5), createsPerHour: intEnv('ROOM_CREATES_PER_HOUR', 20) },
     connectRate: { rate: 1, burst: intEnv('WS_CONNECT_BURST', 10) },
     maxConnectionsPerIp: intEnv('WS_CONNECTIONS_PER_ADDRESS', 8),

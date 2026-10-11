@@ -37,6 +37,8 @@ export const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  // Browsers ignore this over plain http (local development); on the https site it pins https.
+  'Strict-Transport-Security': 'max-age=31536000',
 };
 
 function reply(res, status, extraHeaders = {}) {
