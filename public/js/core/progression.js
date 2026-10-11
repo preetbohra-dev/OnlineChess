@@ -34,6 +34,9 @@ export const XP = {
   training: { base: 15, accuracyDivisor: 5 },
   botLoss: 5,
   minPlies: 16, // a game shorter than 8 moves each earns no XP (no farming by instant resigns)
+  puzzle: 5, // a rated puzzle solved at the first try
+  rushPerPoint: 2,
+  rushMax: 60,
 };
 
 export function emptyProfile() {
@@ -46,6 +49,7 @@ export function emptyProfile() {
     lessons: 0,
     openings: 0,
     daily: { last: null, streak: 0, best: 0, solved: 0 },
+    puzzles: { solved: 0, bestRating: 0, rushBest: 0 },
     achievements: {}, // id -> ISO date unlocked
   };
 }
@@ -59,6 +63,7 @@ export function normalizeProfile(raw) {
   for (const k of Object.keys(base.games)) out.games[k] = num(raw.games?.[k]);
   for (const k of Object.keys(base.online)) out.online[k] = num(raw.online?.[k]);
   out.training = { games: num(raw.training?.games), bestAccuracy: num(raw.training?.bestAccuracy) };
+  out.puzzles = { solved: num(raw.puzzles?.solved), bestRating: num(raw.puzzles?.bestRating), rushBest: num(raw.puzzles?.rushBest) };
   const d = raw.daily ?? {};
   out.daily = {
     last: typeof d.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.last) ? d.last : null,
@@ -90,6 +95,11 @@ export const ACHIEVEMENTS = [
   { id: 'opening-buff', icon: '📖', title: 'Opening buff', text: 'Practise 5 openings to the end.', test: (p) => p.openings >= 5 },
   { id: 'streak-3', icon: '📅', title: 'Habit forming', text: 'Solve the daily puzzle three days in a row.', test: (p) => p.daily.best >= 3 },
   { id: 'streak-7', icon: '🏆', title: 'Week of wisdom', text: 'Solve the daily puzzle seven days in a row.', test: (p) => p.daily.best >= 7 },
+  { id: 'puzzle-100', icon: '🧩', title: 'Puzzle addict', text: 'Solve 100 rated puzzles.', test: (p) => p.puzzles.solved >= 100 },
+  { id: 'puzzle-1500', icon: '⚔️', title: 'Tactician', text: 'Reach a puzzle rating of 1500.', test: (p) => p.puzzles.bestRating >= 1500 },
+  { id: 'puzzle-2000', icon: '🗡️', title: 'Tactical genius', text: 'Reach a puzzle rating of 2000.', test: (p) => p.puzzles.bestRating >= 2000 },
+  { id: 'rush-15', icon: '⚡', title: 'Rush hour', text: 'Score 15 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 15 },
+  { id: 'rush-25', icon: '🌩️', title: 'Lightning', text: 'Score 25 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 25 },
 ];
 
 // Calendar helpers on local dates written as YYYY-MM-DD.
@@ -115,6 +125,7 @@ function outcomeFor(status, color) {
 // 'practice' is a game started from a set-up position: it earns a little XP but no records.
 //   { type: 'lesson', total } · { type: 'opening', total } · { type: 'daily', day: 'YYYY-MM-DD' }
 //   { type: 'sync', lessons, openings }
+//   { type: 'puzzle', solved, rating } · { type: 'rush', score }
 export function applyEvent(input, event, { now = new Date() } = {}) {
   const p = structuredClone(normalizeProfile(input));
   const before = rankFor(p.xp);
@@ -162,6 +173,14 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
   if (event.type === 'sync') {
     p.lessons = Math.max(p.lessons, event.lessons ?? 0);
     p.openings = Math.max(p.openings, event.openings ?? 0);
+  }
+  if (event.type === 'puzzle') {
+    if (Number.isFinite(event.rating)) p.puzzles.bestRating = Math.max(p.puzzles.bestRating, event.rating);
+    if (event.solved) { p.puzzles.solved++; xp = XP.puzzle; }
+  }
+  if (event.type === 'rush' && Number.isFinite(event.score) && event.score >= 0) {
+    p.puzzles.rushBest = Math.max(p.puzzles.rushBest, event.score);
+    xp = Math.min(XP.rushMax, event.score * XP.rushPerPoint);
   }
   if (event.type === 'daily') {
     const day = event.day ?? dayKey(now);

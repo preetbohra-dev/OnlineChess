@@ -70,6 +70,8 @@ export function trackProgress({ store = appStore() } = {}) {
     bus.on('lesson:complete', () => recordEvent({ type: 'lesson', total: completedLessons(store).size }, { store })),
     bus.on('opening:complete', () => recordEvent({ type: 'opening', total: completedOpenings(store).size }, { store })),
     bus.on('daily:solved', ({ day }) => recordEvent({ type: 'daily', day }, { store })),
+    bus.on('puzzle:result', ({ solved, rating }) => recordEvent({ type: 'puzzle', solved, rating }, { store })),
+    bus.on('rush:end', ({ score }) => recordEvent({ type: 'rush', score }, { store })),
   ];
   return () => offs.forEach((off) => off());
 }

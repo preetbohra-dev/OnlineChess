@@ -190,7 +190,7 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 
 ### Slice 10: progress and retention
 
-- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 14 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
+- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 19 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
 - **XP:** wins against the computer by level (20/40/70/120/200; draws half, losses 5), online games 30/15/10, coached games 15 plus accuracy/5, lessons 25, openings 20, the daily puzzle 30 plus 5 per streak day (up to a week), pass and play 5.
 - **Integrity:** games shorter than 8 moves each earn no XP or accuracy credit unless they end in checkmate; only games from the standard start position count toward records and achievements; a game from a set-up position (a `fen=` link, an opening played out) is practice and earns 5 XP.
 - **Daily puzzle** (`#/daily`): one puzzle per day, rotating through the lesson puzzles; players below the Rook rank get Novice and Amateur puzzles. Solving it starts or extends the streak (`daily-streak`); a missed day resets it.
@@ -212,9 +212,26 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - `review-panel` exposes `data-state` (analysing/ready/failed) and `data-ply`. Reviews are cached, so reopening is instant.
 - **Retry** (`btn-retry`) on your inaccuracy, mistake or blunder: the board returns to the position before it; find a move that is not a mistake (judged by the engine) (`retry-feedback`), then `btn-retry-done`.
 
+### Slice 12: puzzle library, rating and Puzzle Rush
+
+- 4,900 puzzles from the Lichess puzzle database (CC0), rated 400–2799, in `public/data/puzzles.json` (built by `npm run puzzles`), loaded only on puzzle pages.
+- **Rated puzzles** (`#/puzzles`, Training `opt-puzzles`, dashboard `dash-puzzles`):
+  - Puzzles are served near your Glicko-2 puzzle rating (`puzzle-rating`, starting at 1000), never repeating the last 300.
+  - The opponent's setup move plays first.
+  - A wrong move counts the puzzle as missed (`rating-change` negative), but you may keep trying.
+  - `btn-lesson-hint` gives one hint; `btn-solution` shows the answer and counts as missed. Then `btn-next-puzzle`.
+  - Theme filter: `#/puzzles?theme=fork` (`theme-<id>` links).
+  - `puzzle-panel` exposes `data-puzzle` (Lichess id) and `data-state`.
+- **Puzzle Rush** (`#/rush`, `opt-rush`): 3 minutes (`?seconds=N` shortens it for tests), 3 strikes, and puzzles that get harder with each solve.
+  - `btn-rush-start`, `rush-timer`, `rush-score`, `rush-strikes`, `rush-result`; best score `rush-best`.
+  - `rush-panel` has `data-puzzle`.
+- The **daily puzzle** now comes from the library: the same for everyone in a 400-point rating band, with no repeat within a year. `daily` has `data-source="library"`; lesson puzzles stand in when offline.
+- XP: 5 per rated puzzle solved at the first try, and 2 per Rush point (maximum 60).
+- New achievements: Puzzle addict (100 solved), Tactician (rating 1500), Tactical genius (2000), Rush hour (15), Lightning (25).
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 12–20 (docs/PLAN-2.md).
+- Plan 2 slices 13–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 
