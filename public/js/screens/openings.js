@@ -135,8 +135,9 @@ export function renderOpening(outlet, { params, query }) {
       if (r.result === 'illegal') return render();
       if (r.result === 'wrong') {
         missesHere++;
+        // (Off-book moves are not judged here — some are fine, some are blunders; the trainer only teaches the line.)
         playSound('notify');
-        message = { kind: 'wrong', text: `${r.move.san} is playable, but it is not the ${opening.name} main line. ${missesHere > 1 ? 'The arrow shows the book move.' : 'Try again — the highlighted piece moves next.'}` };
+        message = { kind: 'wrong', text: `${r.move.san} is not the ${opening.name} main line. ${missesHere > 1 ? 'The arrow shows the book move.' : 'Try again — the highlighted piece moves next.'}` };
         return render();
       }
       missesHere = 0;

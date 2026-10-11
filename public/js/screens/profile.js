@@ -3,7 +3,7 @@ import { h } from '../ui/dom.js';
 import { confirmDialog } from '../ui/modal.js';
 import { loadProfile, resetProfile } from '../store/profile.js';
 import { rankFor, ACHIEVEMENTS, currentStreak, dayKey } from '../core/progression.js';
-import { dailyPuzzle } from '../core/daily.js';
+import { dailyPuzzle, dailyTier } from '../core/daily.js';
 import { PERSONAS } from '../data/personas.js';
 import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
@@ -37,7 +37,7 @@ export function dashboard() {
       h('span', { class: 'muted' }, `🏅 ${unlocked}/${ACHIEVEMENTS.length} achievements · ${g.won}W ${g.drawn}D ${g.lost}L`)),
     h('a', { class: `dash-card dash-daily${solved ? ' done' : ''}`, href: '#/daily', testid: 'dash-daily' },
       h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
-      h('strong', {}, solved ? 'Solved today ✓' : dailyPuzzle(today).title),
+      h('strong', {}, solved ? 'Solved today ✓' : dailyPuzzle(today, dailyTier(profile.xp)).title),
       h('span', { class: 'muted', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
     nextLesson ? h('a', { class: 'dash-card', href: `#/learn/${nextLesson.id}`, testid: 'dash-continue' },
       h('span', { class: 'dash-eyebrow' }, 'Continue learning'),

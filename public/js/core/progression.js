@@ -33,6 +33,7 @@ export const XP = {
   online: { win: 30, draw: 15, loss: 10 },
   training: { base: 15, accuracyDivisor: 5 },
   botLoss: 5,
+  minPlies: 16, // a game shorter than 8 moves each earns no XP (no farming by instant resigns)
 };
 
 export function emptyProfile() {
@@ -110,7 +111,7 @@ function outcomeFor(status, color) {
 }
 
 // Events:
-//   { type: 'game', kind: 'bot'|'online'|'training'|'local'|'practice', status, color, personaId, accuracy }
+//   { type: 'game', kind: 'bot'|'online'|'training'|'local'|'practice', status, color, personaId, accuracy, plies }
 // 'practice' is a game started from a set-up position: it earns a little XP but no records.
 //   { type: 'lesson', total } · { type: 'opening', total } · { type: 'daily', day: 'YYYY-MM-DD' }
 //   { type: 'sync', lessons, openings }
@@ -142,12 +143,16 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
       const win = BOT_WIN_XP[event.personaId] ?? 20;
       xp = result === 'win' ? win : result === 'draw' ? Math.round(win / 2) : XP.botLoss;
     }
+    // Too short to judge: a quick resignation should not count as an accurate game.
+    const short = Number.isFinite(event.plies) && event.plies < XP.minPlies;
     if (event.kind === 'training') {
       p.training.games++;
-      const accuracy = Number.isFinite(event.accuracy) ? event.accuracy : 0;
+      const accuracy = Number.isFinite(event.accuracy) && !short ? event.accuracy : 0;
       p.training.bestAccuracy = Math.max(p.training.bestAccuracy, accuracy);
       xp = XP.training.base + Math.round(accuracy / XP.training.accuracyDivisor);
     }
+    // A checkmate counts however quick it was; any other short ending earns no XP.
+    if (short && event.status?.reason !== 'checkmate') xp = 0;
   }
   // `total` is the number completed so far (progress is also kept outside the profile), so
   // completions from before the profile existed, or before a reset, still count.

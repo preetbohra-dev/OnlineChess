@@ -64,6 +64,7 @@ export function trackProgress({ store = appStore() } = {}) {
         color: playerColorOf(session),
         personaId: kind === 'bot' ? session.persona?.id : undefined,
         accuracy: kind === 'training' ? session.summary?.()?.accuracy : undefined,
+        plies: session.rules?.history().length,
       }, { store });
     }),
     bus.on('lesson:complete', () => recordEvent({ type: 'lesson', total: completedLessons(store).size }, { store })),

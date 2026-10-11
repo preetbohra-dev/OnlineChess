@@ -7,7 +7,7 @@ import { LESSON_TRACKS, ALL_LESSONS, lessonById } from '../data/lessons/index.js
 import { completedLessons, markLessonComplete } from '../store/progress.js';
 import { createPuzzle } from '../core/puzzle.js';
 import { createPlayout } from '../core/playout.js';
-import { dailyPuzzle } from '../core/daily.js';
+import { dailyPuzzle, dailyTier } from '../core/daily.js';
 import { dayKey, currentStreak } from '../core/progression.js';
 import { loadProfile } from '../store/profile.js';
 import { bus } from '../core/events.js';
@@ -41,7 +41,7 @@ const KIND_LABEL = { read: 'Lesson', puzzle: 'Puzzle', playout: 'vs Stockfish' }
 // The daily puzzle: one puzzle per calendar day; solving it keeps your streak alive.
 export function renderDaily(outlet) {
   const day = dayKey();
-  const lesson = dailyPuzzle(day);
+  const lesson = dailyPuzzle(day, dailyTier(loadProfile().xp));
   const solvedToday = () => loadProfile().daily.last === day;
   const boardHost = h('div', { class: 'board-host lesson-board' });
   const panel = h('div', { class: 'lesson-panel' });

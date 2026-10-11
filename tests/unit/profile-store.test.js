@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createStore, memoryBackend } from '../../public/js/store/storage.js';
 import { loadProfile, recordEvent, resetProfile, trackProgress } from '../../public/js/store/profile.js';
 import { bus } from '../../public/js/core/events.js';
-import { DAILY_POOL, dailyPuzzle } from '../../public/js/core/daily.js';
+import { DAILY_POOL, dailyPuzzle, dailyTier } from '../../public/js/core/daily.js';
 
 const fresh = () => createStore({ backend: memoryBackend() });
 const won = { over: true, winner: 'w', reason: 'checkmate', result: '1-0' };
@@ -95,4 +95,13 @@ test('the daily puzzle is a real puzzle, the same all day, and changes from day 
   const all = new Set();
   for (let i = 0; i < DAILY_POOL.length; i++) all.add(dailyPuzzle(`2026-01-${String(i + 1).padStart(2, '0')}`).id);
   assert.equal(all.size, DAILY_POOL.length, 'every puzzle comes round once per cycle');
+});
+
+test('newer players get Novice and Amateur daily puzzles', () => {
+  assert.equal(dailyTier(0), 'easy');
+  assert.equal(dailyTier(800), 'all');
+  for (let i = 1; i <= 28; i++) {
+    const l = dailyPuzzle(`2026-02-${String(i).padStart(2, '0')}`, 'easy');
+    assert.ok(['novice', 'amateur'].includes(l.level), l.id);
+  }
 });
