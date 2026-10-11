@@ -4,7 +4,7 @@
 import { h, fill, liveRegion } from '../ui/dom.js';
 import { BoardView } from '../ui/board-view.js';
 import { choosePromotion } from '../ui/modal.js';
-import { listGames, gameById, attachReview } from '../store/games.js';
+import { listGames, gameById, attachReview, markRetried } from '../store/games.js';
 import { reviewGame, compactReview, expandReview, replay } from '../core/review.js';
 import { explainMove } from '../core/explain.js';
 import { GRADE_LABEL, winPercent, scoreToCp, classifyMove } from '../core/classify.js';
@@ -157,7 +157,7 @@ export function renderReview(outlet, { params, query, startEngine }) {
       mine.kind = 'success';
       mine.message = `${r.san} — ${GRADE_LABEL[grade].toLowerCase()}! That keeps the game on track${r.uci === m.analysis.bestMove ? '' : ` (the engine's top choice was ${sanFor(m.before, m.analysis.bestMove)})`}.`;
       playSound(soundForMove(r));
-      bus.emit('review:retry-solved', { id: record.id, ply: mine.ply });
+      if (markRetried(record.id, mine.ply)) bus.emit('review:retry-solved', { id: record.id, ply: mine.ply });
     } else {
       mine.tried = null;
       mine.kind = 'wrong';

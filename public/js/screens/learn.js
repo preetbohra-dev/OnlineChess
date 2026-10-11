@@ -10,7 +10,7 @@ import { createPlayout } from '../core/playout.js';
 import { dailyPuzzle, dailyTier } from '../core/daily.js';
 import { parseRow, toLesson, dailyFromLibrary } from '../core/puzzle-library.js';
 import { loadLibrary, loadPuzzleStats, markSeen, pinDaily } from '../store/puzzle-stats.js';
-import { dayKey, currentStreak } from '../core/progression.js';
+import { dayKey, currentStreak, previousDay } from '../core/progression.js';
 import { loadProfile } from '../store/profile.js';
 import { bus } from '../core/events.js';
 import { createGame } from '../core/rules.js';
@@ -65,15 +65,16 @@ export function renderDaily(outlet) {
 
 function mountDaily(outlet, lesson, day) {
   const library = lesson.level === 'library';
-  const solvedToday = () => loadProfile().daily.last === day;
   const boardHost = h('div', { class: 'board-host lesson-board' });
   const panel = h('div', { class: 'lesson-panel' });
   const streakNote = h('p', { class: 'muted daily-streak', testid: 'daily-streak' });
   const showStreak = () => {
-    const streak = currentStreak(loadProfile(), day);
-    streakNote.textContent = solvedToday()
-      ? `Solved today · 🔥 ${streak}-day streak. Come back tomorrow for a new puzzle.`
-      : streak ? `🔥 ${streak}-day streak — solve today's puzzle to keep it going.` : 'Solve one puzzle a day to build a streak.';
+    const profile = loadProfile();
+    const streak = currentStreak(profile, day);
+    const frozen = streak && profile.daily.last !== previousDay(day);
+    if (profile.daily.last === day) streakNote.textContent = `Solved today · 🔥 ${streak}-day streak. Come back tomorrow for a new puzzle.`;
+    else if (!streak) streakNote.textContent = 'Solve one puzzle a day to build a streak.';
+    else streakNote.textContent = `🔥 ${streak}-day streak — solve today's puzzle to keep it going.${frozen ? ' 🧊 A streak freeze will cover the missed day.' : ''}`;
   };
   outlet.append(h('div', { class: 'game lesson', testid: 'daily', dataset: { lesson: lesson.id, source: library ? 'library' : 'lessons' } },
     h('div', { class: 'game-board-col' }, boardHost),

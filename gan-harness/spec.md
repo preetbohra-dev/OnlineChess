@@ -242,9 +242,18 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - Locked items are shown disabled, with the rank that unlocks them. `<html data-board>` shows the active board. A locked choice (e.g. after a profile reset) falls back to the free one.
 - Tall dialogs now scroll on short screens.
 
+### Slice 14: weekly quests and streak freezes
+
+- Three **weekly quests** (Monday to Sunday, local time), the same for everyone, picked from a pool of ten. Examples: beat Rookie Rex twice, win 3 games, win in 40 moves or fewer, solve 15 rated puzzles, score 10 in Rush, review 3 games, fix 3 mistakes with Retry, solve the daily on 5 days, play 2 coached games, play online.
+  - Shown on the dashboard (`dash-quests`) and the profile; each quest is `quest-<id>` with `data-done` and a progress bar.
+  - Each finished quest gives 30 XP and a toast.
+- Finishing all three earns a **streak freeze** (at most two held, shown with 🧊). A freeze covers one missed day of the daily puzzle and is spent when the next puzzle is solved.
+  - The daily page says when a freeze will cover the gap (`daily-streak`); a toast confirms when one is used.
+  - Freezes are kept if the gap is too long to cover.
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 14–20 (docs/PLAN-2.md).
+- Plan 2 slices 15–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 

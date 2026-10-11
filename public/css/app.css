@@ -489,3 +489,10 @@ html { scroll-padding-top: 72px; }
 .star { color: var(--muted); }
 .star.on { color: var(--gold); }
 .setting-row select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); max-width: 55%; }
+
+/* Weekly quests */
+.dash-quests { grid-column: 1 / -1; }
+.quest-list { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-direction: column; gap: 8px; }
+.quest { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.quest .xp-bar { grid-column: 1 / -1; height: 6px; }
+.quest.done .quest-text { color: var(--muted); }

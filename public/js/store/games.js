@@ -56,6 +56,18 @@ export function attachReview(id, review, store = appStore()) {
   return writeGames(games, store, id);
 }
 
+// Remember that a mistake in a game was fixed with Retry; true only the first time, so quests
+// count each fixed mistake once however often it is replayed.
+export function markRetried(id, ply, store = appStore()) {
+  const games = listGames(store);
+  const g = games.find((x) => x.id === id);
+  if (!g || !Number.isInteger(ply)) return false;
+  const done = Array.isArray(g.retried) ? g.retried : [];
+  if (done.includes(ply)) return false;
+  g.retried = [...done, ply];
+  return writeGames(games, store, id);
+}
+
 const newId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)).slice(0, 16);
 
 // The id under which a session's game was saved (for the result window's Review button).
