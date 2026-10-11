@@ -18,6 +18,8 @@ Play, learn and train chess in the browser — from your first game to grandmast
 
 All FIDE Laws of Chess are enforced. That includes castling restrictions, en passant and promotion. It also covers threefold, fivefold, fifty and seventy-five move draws, insufficient material, and the timeout rule. See [docs/RULES-IMPL.md](docs/RULES-IMPL.md).
 
+It installs as an app (home screen or desktop) and works offline, except online play. The offline copy is versioned from the files the server sees at start-up, so restart the server after deploying new files.
+
 Every game shows the opening being played. Progress is stored in the browser (localStorage); there are no accounts, so XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
 
 ## Run
@@ -79,4 +81,5 @@ Third-party components:
 - [cm-chessboard](https://github.com/shaack/cm-chessboard): MIT
 - [ws](https://github.com/websockets/ws): MIT
 - [Stockfish](https://stockfishchess.org) via [stockfish.js](https://github.com/nmrugg/stockfish.js): GPL-3.0
+- App icons: `node scripts/icons.mjs` renders them from the knight logo (needs Playwright's Chrome).
 - Puzzles: the [Lichess puzzle database](https://database.lichess.org/#puzzles), CC0. `npm run puzzles` rebuilds `public/data/puzzles.json` (needs the `zstd` command-line tool).

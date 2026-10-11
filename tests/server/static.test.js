@@ -97,3 +97,17 @@ test('only GET and HEAD are allowed', async () => {
   assert.equal(head.status, 200);
   assert.equal(head.body, '');
 });
+
+test('/sw.js is the generated service worker, never cached by the browser, and lists no dotfiles', async () => {
+  const r = await get('/sw.js');
+  assert.equal(r.status, 200);
+  assert.match(r.headers['content-type'], /text\/javascript/);
+  assert.equal(r.headers['cache-control'], 'no-cache');
+  assert.match(r.body, /const VERSION = "[0-9a-f]{12}";/);
+  assert.match(r.body, /"\/app\.js"/);
+  assert.doesNotMatch(r.body, /secret/i);
+  assert.ok(r.headers['content-security-policy']);
+  const head = await get('/sw.js', 'HEAD');
+  assert.equal(head.status, 200);
+  assert.equal(head.body, '');
+});

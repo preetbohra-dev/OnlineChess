@@ -32,6 +32,7 @@ import { trackGames } from './store/games.js';
 import { trackProgress } from './store/profile.js';
 import { installCelebrations } from './ui/celebrate.js';
 import { installCosmetics } from './ui/cosmetics.js';
+import { installPwa } from './ui/pwa.js';
 import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
@@ -160,6 +161,7 @@ applyTheme(settings.get().theme);
 settings.on('change', (s) => applyTheme(s.theme));
 installSoundUnlock();
 installCosmetics();
+installPwa();
 installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
 trackProgress();
 trackGames();

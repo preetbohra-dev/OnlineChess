@@ -18,6 +18,8 @@ export default defineConfig({
     // PW_CHANNEL=chrome runs against an installed Google Chrome instead of the bundled Chromium.
     channel: process.env.PW_CHANNEL || undefined,
     launchOptions: { timeout: 30_000 },
+    // The app installs a service worker that caches ~4 MB; only the offline tests need it.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: 'node server/index.js',
