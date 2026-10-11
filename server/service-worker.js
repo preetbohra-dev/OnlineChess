@@ -38,6 +38,24 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skip-waiting') self.skipWaiting();
 });
 
+// Daily-puzzle reminders: show the notification; a tap opens (or focuses) the daily puzzle.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
+  const title = typeof data.title === 'string' ? data.title.slice(0, 80) : 'OnlineChess';
+  const body = typeof data.body === 'string' ? data.body.slice(0, 200) : 'Your daily puzzle is waiting.';
+  event.waitUntil(self.registration.showNotification(title, { body, icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: 'daily', data: { url: '/#/daily' } }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+    if (open) return open.navigate('/#/daily').then((w) => (w || open).focus());
+    return self.clients.openWindow('/#/daily');
+  }));
+});
+
 // Cache first for the app's own files, from this version's cache only (never a newer one still
 // waiting, so old and new files never mix). The API and online play always go to the network.
 self.addEventListener('fetch', (event) => {

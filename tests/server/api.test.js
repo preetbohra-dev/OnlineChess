@@ -108,3 +108,25 @@ test('without a database the API says so', async () => {
   await bare.close();
   assert.equal(res.status, 503);
 });
+
+test('push: key, subscribe (validated, signed in only) and unsubscribe', async () => {
+  const pdb = openDatabase(':memory:');
+  const papp = createAppServer({ db: pdb, push: { publicKey: 'PUBKEY' }, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
+  await new Promise((r) => papp.http.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${papp.http.address().port}`;
+  const headers = { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' };
+  const post = (p, body, cookie) => fetch(url + p, { method: 'POST', headers: { ...headers, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
+  assert.deepEqual(await (await fetch(`${url}/api/push/key`)).json(), { publicKey: 'PUBKEY' });
+  const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/xyz', keys: { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) } };
+  assert.equal((await post('/api/push/subscribe', { subscription, tz: 'Asia/Kolkata', hour: 19 })).status, 401);
+  const reg = await post('/api/register', { username: 'mona', password: PW });
+  const cookie = reg.headers.get('set-cookie').split(';')[0];
+  assert.equal((await post('/api/push/subscribe', { subscription: { ...subscription, endpoint: 'https://evil.example/x' }, tz: 'Asia/Kolkata', hour: 19 }, cookie)).status, 400);
+  assert.equal((await post('/api/push/subscribe', { subscription, tz: 'Nowhere', hour: 19 }, cookie)).status, 400);
+  assert.equal((await post('/api/push/subscribe', { subscription, tz: 'Asia/Kolkata', hour: 24 }, cookie)).status, 400);
+  assert.equal((await post('/api/push/subscribe', { subscription, tz: 'Asia/Kolkata', hour: 19 }, cookie)).status, 200);
+  assert.equal(pdb.q.allPush.all().length, 1);
+  assert.equal((await post('/api/push/unsubscribe', { endpoint: subscription.endpoint }, cookie)).status, 200);
+  assert.equal(pdb.q.allPush.all().length, 0);
+  await papp.close();
+});

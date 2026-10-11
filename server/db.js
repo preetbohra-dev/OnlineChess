@@ -30,6 +30,20 @@ const MIGRATIONS = [
      data TEXT NOT NULL,
      updated_at INTEGER NOT NULL
    );`,
+  // 2: Web Push subscriptions for daily-puzzle reminders
+  `CREATE TABLE push_subscriptions (
+     id INTEGER PRIMARY KEY,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     endpoint TEXT NOT NULL UNIQUE,
+     p256dh TEXT NOT NULL,
+     auth TEXT NOT NULL,
+     tz TEXT NOT NULL,
+     hour INTEGER NOT NULL,
+     created_at INTEGER NOT NULL,
+     last_sent_day TEXT,
+     failures INTEGER NOT NULL DEFAULT 0
+   );
+   CREATE INDEX push_user ON push_subscriptions(user_id);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -73,6 +87,22 @@ function wrap(db) {
     countUserSessions: db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE user_id = ?'),
     oldestUserSession: db.prepare('DELETE FROM sessions WHERE token_hash = (SELECT token_hash FROM sessions WHERE user_id = ? ORDER BY created_at LIMIT 1)'),
     state: db.prepare('SELECT data, updated_at FROM states WHERE user_id = ?'),
+    upsertPush: db.prepare(`INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, tz, hour, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, tz = excluded.tz, hour = excluded.hour, failures = 0
+      WHERE push_subscriptions.user_id = excluded.user_id`), // another account cannot take over an endpoint
+    countAllPush: db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions'),
+    countPush: db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?'),
+    oldestPush: db.prepare('DELETE FROM push_subscriptions WHERE id = (SELECT id FROM push_subscriptions WHERE user_id = ? ORDER BY created_at LIMIT 1)'),
+    pushForUser: db.prepare('SELECT endpoint, tz, hour FROM push_subscriptions WHERE user_id = ?'),
+    deletePush: db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?'),
+    deletePushEndpoint: db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?'),
+    // Only what the scheduler needs: the daily puzzle fields of the synced state, not all of it.
+    allPush: db.prepare(`SELECT p.id, p.endpoint, p.p256dh, p.auth, p.tz, p.hour, p.last_sent_day, p.failures,
+      json_extract(s.data, '$.profile.daily.last') AS daily_last, json_extract(s.data, '$.profile.daily.streak') AS daily_streak
+      FROM push_subscriptions p LEFT JOIN states s ON s.user_id = p.user_id`),
+    markPushSent: db.prepare('UPDATE push_subscriptions SET last_sent_day = ? WHERE id = ?'),
+    pushFailed: db.prepare('UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?'),
+    pushOk: db.prepare('UPDATE push_subscriptions SET failures = 0 WHERE id = ?'),
     putState: db.prepare('INSERT INTO states (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'),
   };
   return {

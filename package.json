@@ -19,6 +19,7 @@
   "dependencies": {
     "chess.js": "1.4.0",
     "cm-chessboard": "8.15.3",
+    "web-push": "3.6.7",
     "ws": "8.21.3"
   },
   "devDependencies": {

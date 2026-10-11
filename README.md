@@ -13,6 +13,7 @@ Play, learn and train chess in the browser — from your first game to grandmast
   - Rated puzzles: about 5,000 real puzzles from the Lichess database, served near your puzzle rating (Glicko-2), with theme filters; and Puzzle Rush (three minutes, three strikes).
 - **Game review** after every game: accuracy, an evaluation graph, key moments, and "retry" to find a better move where you went wrong.
 - **Share and challenge**: share a win or a Puzzle Rush score as a picture with a link that challenges a friend to beat it.
+- **Daily reminders**: signed-in players can get one notification a day, at a chosen hour, when the daily puzzle is still unsolved.
 - **Weak spots**: your own mistakes come back as puzzles on a spaced-repetition schedule until you have them mastered.
 - **Progress**: XP and ranks, records against every computer opponent, a campaign with three stars per opponent, 22 achievements, weekly quests that earn streak freezes, board themes and piece sets unlocked by rank, a daily puzzle with a streak, and a home dashboard that shows what to do next.
 
@@ -40,6 +41,9 @@ Environment variables:
 | `PORT` | `3200` | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` allows other devices on your network |
 | `DB_PATH` | `~/.jodhpur-studio/data/chess.db` | Accounts database (SQLite). `off` disables accounts; `:memory:` keeps them in memory (tests). A daily backup goes to `backups/` beside it. |
+| `PUSH` | (on) | Daily reminders over Web Push (needs accounts). `off` disables them; `dry` sends nothing (tests). |
+| `VAPID_FILE` | `~/.jodhpur-studio/secrets/chess-vapid.json` | Web Push keys, created on first start (mode 600). |
+| `VAPID_SUBJECT` | `https://<first ALLOWED_HOSTS>` | Contact for push services (`mailto:` or an https URL). |
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
 
