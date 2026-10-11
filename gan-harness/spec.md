@@ -312,9 +312,22 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - The service worker shows the notification; tapping it opens `#/daily`.
 - VAPID keys live outside the repository (`VAPID_FILE`, default `~/.jodhpur-studio/secrets/chess-vapid.json`, mode 600). `PUSH=off` disables reminders; `PUSH=dry` (tests) sends nothing.
 
+### Slice 20: weekly challenge and leaderboard
+
+- `#/weekly` (Training `opt-weekly`; dashboard `dash-weekly`). Each week (Monday 00:00 UTC) everyone gets the same ten puzzles (ratings rising from about 800 to 2200) and three games from set positions against a fixed computer opponent.
+  - The puzzles come from a server-only pool (`server/data/weekly-puzzles.json`, a separate Lichess sample never sent to browsers).
+  - The game positions rotate from six (queen and rook mates, two bishops, extra queen, extra rook, Lucena).
+- **Puzzles** (`wpuzzle-<i>` tiles, `wpuzzle-feedback`):
+  - One attempt each, checked by the server (`POST /api/challenge/answer`). The answer is revealed only after the attempt. In mate-in-1 puzzles any mate counts. 10 points each.
+- **Games** (`wgame-<slot>`, `wplay-<slot>`): open a computer game with `?weekly=<slot>`.
+  - When it ends on the board, the moves are sent (`POST /api/challenge/game`). The server checks they are legal from the slot's position and end in checkmate or a draw by the rules: a win scores 5, a draw 2, only the first result counts.
+  - Resignations and time-outs cannot be checked and score nothing (a toast says so).
+  - Game results are labelled self-reported (the computer's moves cannot be verified).
+- **Leaderboard** (`leaderboard`, `rank-<user>`, `my-rank`, `last-week`): the top 50 by points, ties to whoever finished first, plus your own rank and last week's podium. Guests see it with an invitation to sign in (`weekly-signin`).
+
 ## Not built yet (score N/A)
 
-- Plan 2 slice 20 (docs/PLAN-2.md).
+- Nothing: Plan 2 (slices 11–20) is complete.
 
 ## How to run for evaluation
 

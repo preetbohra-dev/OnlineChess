@@ -507,3 +507,12 @@ html { scroll-padding-top: 72px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .form-error { margin: 0; color: var(--danger); }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+
+/* Weekly challenge */
+.puzzle-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.puzzle-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.puzzle-tile.right { border-color: var(--accent); }
+.puzzle-tile.wrong { border-color: var(--danger); opacity: .8; }
+.weekly-solver { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+.weekly-board { max-width: 480px; }
+.records tr.me { background: color-mix(in srgb, var(--accent) 14%, transparent); }

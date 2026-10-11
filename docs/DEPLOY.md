@@ -29,6 +29,11 @@ From Slice 5 onward the server needs the `ws` package. Run `npm ci --omit=dev --
 - To restore a backup: stop the agent, copy a `backups/chess-YYYY-MM-DD.db` over `chess.db` (and remove `chess.db-wal`/`-shm`), then start the agent.
 - To reset a password or delete an account: `DB_PATH=~/.jodhpur-studio/data/chess.db node scripts/admin.mjs reset-password <user>` (or `delete-user <user>`), from the live checkout.
 
+## Weekly challenge
+
+- The challenge's puzzles come from `server/data/weekly-puzzles.json`, a separate sample of the Lichess database that the server never sends to browsers (the static root is `public/`).
+- It is committed because this repository is private. If the repository is ever made public, move that file out of git (and rebuild it with `node scripts/puzzles.mjs --slot 1 --per-band 50 --out server/data/weekly-puzzles.json`), or the answers become public.
+
 ## Daily reminders (Web Push)
 
 - The server creates its Web Push (VAPID) keys on first start in `~/.jodhpur-studio/secrets/chess-vapid.json` (mode 600). Keep that file: new keys would invalidate every existing subscription.

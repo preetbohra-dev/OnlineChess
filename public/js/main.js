@@ -27,6 +27,8 @@ import { renderPuzzles, renderRush } from './screens/puzzles.js';
 import { renderCampaign } from './screens/campaign.js';
 import { renderWeakSpots } from './screens/weakspots.js';
 import { renderChallenge } from './screens/challenge.js';
+import { renderWeekly } from './screens/weekly.js';
+import { reportGame } from './store/weekly.js';
 import { trackWeakSpots } from './store/weakspots.js';
 import { trackGames } from './store/games.js';
 import { trackProgress } from './store/profile.js';
@@ -37,6 +39,7 @@ import { trackSync } from './store/account.js';
 import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
+import { bus } from './core/events.js';
 
 const debug = (globalThis.__oc ??= {});
 debug.engines = 0;
@@ -147,8 +150,14 @@ function renderBotGame(outlet, { query }) {
     orientation: playerColor,
     onNewGame: () => navigate(`/play/bot/new?persona=${persona.id}`),
   });
+  // A weekly-challenge game (?weekly=<slot>): report the moves when it ends (the server checks them).
+  const weeklySlot = /^[0-2]$/.test(query.get('weekly') ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(query.get('week') ?? '') ? Number(query.get('weekly')) : null;
+  const offWeekly = weeklySlot === null ? () => {} : bus.on('game:end', ({ session: ended, status }) => {
+    if (ended === session) reportGame(query.get('week'), weeklySlot, session.rules.history({ verbose: true }).map((m) => m.uci), status);
+  });
   session.start();
   return () => {
+    offWeekly();
     screen.destroy();
     engine.terminate();
     debug.engines--;
@@ -197,6 +206,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/campaign$/, title: 'Campaign', render: renderCampaign },
   { pattern: /^\/weak-spots$/, title: 'Weak spots', render: renderWeakSpots },
   { pattern: /^\/challenge$/, title: 'Challenge', render: renderChallenge },
+  { pattern: /^\/weekly$/, title: 'Weekly challenge', render: renderWeekly },
   { pattern: /^\/rush$/, title: 'Puzzle Rush', render: renderRush },
   { pattern: /^\/review\/(?<id>[a-z0-9]{6,24})$/, title: 'Game review', render: (outlet, ctx) => renderReview(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },

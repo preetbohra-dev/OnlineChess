@@ -2,7 +2,11 @@
 // Builds public/data/puzzles.json: a curated, rating-balanced subset of the Lichess puzzle
 // database (CC0, https://database.lichess.org/#puzzles).
 //
-//   node scripts/puzzles.mjs [source] [--per-band 210] [--out public/data/puzzles.json]
+//   node scripts/puzzles.mjs [source] [--per-band 210] [--out public/data/puzzles.json] [--slot 0]
+//
+// --slot picks a different, disjoint sample of the database (the hash filter keeps ids whose hash
+// leaves remainder <slot>). The weekly challenge uses its own server-only pool from slot 1:
+//   node scripts/puzzles.mjs --slot 1 --per-band 50 --out server/data/weekly-puzzles.json
 //
 // source: a URL or a local path to lichess_db_puzzle.csv.zst (or an uncompressed .csv);
 // defaults to the Lichess download. The CSV is streamed and never stored.
@@ -27,12 +31,13 @@ const MIN = 400;
 const MAX = 2800;
 
 export function parseArgs(argv) {
-  const opts = { source: DEFAULT_SOURCE, perBand: 210, out: 'public/data/puzzles.json', sample: 8 };
+  const opts = { source: DEFAULT_SOURCE, perBand: 210, out: 'public/data/puzzles.json', sample: 8, slot: 0 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--per-band') opts.perBand = Number(argv[++i]);
     else if (a === '--out') opts.out = argv[++i];
     else if (a === '--sample') opts.sample = Number(argv[++i]);
+    else if (a === '--slot') opts.slot = Number(argv[++i]);
     else opts.source = a;
   }
   return opts;
@@ -42,22 +47,22 @@ export function parseArgs(argv) {
 const hash = (s) => { let x = 2166136261; for (const c of s) x = Math.imul(x ^ c.charCodeAt(0), 16777619) >>> 0; return x; };
 
 // Keep a row? Returns [id, fen, moves, rating, themes] or null.
-export function pick(cols, sample = 8) {
+export function pick(cols, sample = 8, slot = 0) {
   const [id, fen, moves, rating, rd, popularity, plays, themes] = cols;
   const r = Number(rating);
   if (!id || !fen || !moves || !Number.isFinite(r)) return null;
   if (r < MIN || r >= MAX || Number(rd) >= 90 || Number(popularity) < 85 || Number(plays) < 500) return null;
-  if (hash(id) % sample !== 0) return null;
+  if (hash(id) % sample !== slot) return null;
   return [id, fen, moves, r, themes];
 }
 
-export async function curate(lines, { perBand = 210, sample = 8 } = {}) {
+export async function curate(lines, { perBand = 210, sample = 8, slot = 0 } = {}) {
   const bands = new Map();
   const want = (MAX - MIN) / BAND;
   let full = 0;
   for await (const line of lines) {
     if (line.startsWith('PuzzleId')) continue;
-    const row = pick(line.split(','), sample);
+    const row = pick(line.split(','), sample, slot);
     if (!row) continue;
     const band = Math.floor((row[3] - MIN) / BAND);
     const list = bands.get(band) ?? [];

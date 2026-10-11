@@ -190,7 +190,9 @@ Client-only slices first (they work for guests), then the server slices.
   - 10 rated puzzles from the library, the same for everyone;
   - 3 games from set positions against a fixed opponent.
 - Puzzle answers are checked on the server, against solutions the client never receives
-  until the challenge is answered. Game results come with the PGN; the server checks
+  until the challenge is answered. The puzzles come from a separate, server-only sample of the
+  Lichess database (`server/data/weekly-puzzles.json`), so they cannot be looked up in the
+  app's own puzzle file. Game results come with the PGN; the server checks
   legality, that the game came from the challenge position, and that it ended properly.
 - Bot moves cannot be verified, so game points are labelled "self-reported" and weigh less
   than puzzles.

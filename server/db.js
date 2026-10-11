@@ -44,6 +44,35 @@ const MIGRATIONS = [
      failures INTEGER NOT NULL DEFAULT 0
    );
    CREATE INDEX push_user ON push_subscriptions(user_id);`,
+  // 3: the weekly challenge
+  `CREATE TABLE challenge_answers (
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     week TEXT NOT NULL,
+     idx INTEGER NOT NULL,
+     move TEXT NOT NULL,
+     correct INTEGER NOT NULL,
+     at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, week, idx)
+   );
+   CREATE TABLE challenge_games (
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     week TEXT NOT NULL,
+     slot INTEGER NOT NULL,
+     outcome TEXT NOT NULL,
+     points INTEGER NOT NULL,
+     plies INTEGER NOT NULL,
+     at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, week, slot)
+   );
+   CREATE TABLE challenge_starts (
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     week TEXT NOT NULL,
+     slot INTEGER NOT NULL,
+     at INTEGER NOT NULL,
+     PRIMARY KEY (user_id, week, slot)
+   );
+   CREATE INDEX challenge_answers_week ON challenge_answers(week);
+   CREATE INDEX challenge_games_week ON challenge_games(week);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -103,6 +132,27 @@ function wrap(db) {
     markPushSent: db.prepare('UPDATE push_subscriptions SET last_sent_day = ? WHERE id = ?'),
     pushFailed: db.prepare('UPDATE push_subscriptions SET failures = failures + 1 WHERE id = ?'),
     pushOk: db.prepare('UPDATE push_subscriptions SET failures = 0 WHERE id = ?'),
+    answers: db.prepare('SELECT idx, move, correct FROM challenge_answers WHERE user_id = ? AND week = ?'),
+    addAnswer: db.prepare('INSERT OR IGNORE INTO challenge_answers (user_id, week, idx, move, correct, at) VALUES (?, ?, ?, ?, ?, ?)'),
+    startGame: db.prepare('INSERT OR IGNORE INTO challenge_starts (user_id, week, slot, at) VALUES (?, ?, ?, ?)'),
+    gameStart: db.prepare('SELECT at FROM challenge_starts WHERE user_id = ? AND week = ? AND slot = ?'),
+    gamesPlayed: db.prepare('SELECT slot, outcome, points FROM challenge_games WHERE user_id = ? AND week = ?'),
+    addGame: db.prepare('INSERT OR IGNORE INTO challenge_games (user_id, week, slot, outcome, points, plies, at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+    // Score per player for a week: puzzle points + game points; ties go to whoever finished first.
+    leaderboard: db.prepare(`WITH scores AS (
+        SELECT user_id, SUM(points) AS score, MAX(at) AS last FROM (
+          SELECT user_id, correct * ? AS points, at FROM challenge_answers WHERE week = ?
+          UNION ALL SELECT user_id, points, at FROM challenge_games WHERE week = ?)
+        GROUP BY user_id)
+      SELECT u.username, s.user_id, s.score, s.last, RANK() OVER (ORDER BY s.score DESC, s.last ASC) AS rank
+      FROM scores s JOIN users u ON u.id = s.user_id WHERE s.score > 0 ORDER BY rank LIMIT ?`),
+    myRank: db.prepare(`WITH scores AS (
+        SELECT user_id, SUM(points) AS score, MAX(at) AS last FROM (
+          SELECT user_id, correct * ? AS points, at FROM challenge_answers WHERE week = ?
+          UNION ALL SELECT user_id, points, at FROM challenge_games WHERE week = ?)
+        GROUP BY user_id),
+      ranked AS (SELECT user_id, score, RANK() OVER (ORDER BY score DESC, last ASC) AS rank FROM scores)
+      SELECT score, rank FROM ranked WHERE user_id = ?`),
     putState: db.prepare('INSERT INTO states (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'),
   };
   return {
