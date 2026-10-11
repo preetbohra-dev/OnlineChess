@@ -190,7 +190,7 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 
 ### Slice 10: progress and retention
 
-- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 19 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
+- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 21 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
 - **XP:** wins against the computer by level (20/40/70/120/200; draws half, losses 5), online games 30/15/10, coached games 15 plus accuracy/5, lessons 25, openings 20, the daily puzzle 30 plus 5 per streak day (up to a week), pass and play 5.
 - **Integrity:** games shorter than 8 moves each earn no XP or accuracy credit unless they end in checkmate; only games from the standard start position count toward records and achievements; a game from a set-up position (a `fen=` link, an opening played out) is practice and earns 5 XP.
 - **Daily puzzle** (`#/daily`): one puzzle per day, rotating through the lesson puzzles; players below the Rook rank get Novice and Amateur puzzles. Solving it starts or extends the streak (`daily-streak`); a missed day resets it.
@@ -229,9 +229,22 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - XP: 5 per rated puzzle solved at the first try, and 2 per Rush point (maximum 60).
 - New achievements: Puzzle addict (100 solved), Tactician (rating 1500), Tactical genius (2000), Rush hour (15), Lightning (25).
 
+### Slice 13: campaign and cosmetics
+
+- **Campaign** (`#/campaign`; Normal Mode `opt-campaign`; dashboard `dash-campaign`):
+  - The five opponents in order (`stop-<persona>`, `data-unlocked`). Pip is open; beating an opponent opens the next.
+  - Three stars each (`stars-<persona>`, aria-label "n of 3 stars"): a win, a win in 40 moves or fewer, and a win without a blunder. The third is awarded when the won game is reviewed, and the result window hints at it (`clean-star-hint`).
+  - Stars count only against unlocked opponents and only for games from the standard start. Total: `campaign-total`.
+  - Each new star gives 10 XP. Two new achievements: Rising star (5 stars) and Constellation (all 15). Star toasts and confetti.
+- **Cosmetics** in Settings:
+  - `setting-boardTheme` has six boards: Wood (the original, free), Tournament green (Knight), Marble (Bishop), Ocean (Rook), Night (Queen) and Royal gold (King).
+  - `setting-pieceSet` has Staunty (free) and Classic (Bishop).
+  - Locked items are shown disabled, with the rank that unlocks them. `<html data-board>` shows the active board. A locked choice (e.g. after a profile reset) falls back to the free one.
+- Tall dialogs now scroll on short screens.
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 13–20 (docs/PLAN-2.md).
+- Plan 2 slices 14–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 

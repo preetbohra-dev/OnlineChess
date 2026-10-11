@@ -2,6 +2,25 @@
 import { h } from './dom.js';
 import { openModal } from './modal.js';
 import { appSettings } from '../store/settings.js';
+import { BOARD_THEMES, PIECE_SETS } from '../data/cosmetics.js';
+import { isUnlocked, rankName, currentBoardTheme, currentPieceSet } from './cosmetics.js';
+import { loadProfile } from '../store/profile.js';
+
+// A choice of cosmetics; locked items are listed with the rank that unlocks them.
+function cosmeticSelect(key, label, list, current, hint) {
+  const settings = appSettings();
+  const xp = loadProfile().xp;
+  const select = h('select', { testid: `setting-${key}`, onChange: (e) => settings.update({ [key]: e.target.value }) },
+    list.map((item) => {
+      const open = isUnlocked(item, xp);
+      const option = h('option', { value: item.id, disabled: !open }, open ? item.name : `${item.name} — unlocks at ${rankName(item.rank)}`);
+      option.selected = item.id === current.id;
+      return option;
+    }));
+  return h('label', { class: 'setting-row' },
+    h('span', { class: 'setting-text' }, h('strong', {}, label), hint ? h('span', { class: 'muted' }, hint) : null),
+    select);
+}
 
 function toggle(key, label, hint) {
   const settings = appSettings();
@@ -31,6 +50,8 @@ export function openSettings() {
     className: 'settings',
     body: [
       segmented('theme', 'Theme', [['system', 'System'], ['dark', 'Dark'], ['light', 'Light']]),
+      cosmeticSelect('boardTheme', 'Board', BOARD_THEMES, currentBoardTheme(), 'Earn XP to rise in rank and unlock more boards and pieces'),
+      cosmeticSelect('pieceSet', 'Pieces', PIECE_SETS, currentPieceSet(), 'Applies to the next board you open'),
       segmented('animation', 'Piece animation', [['off', 'Off'], ['fast', 'Fast'], ['normal', 'Smooth']]),
       toggle('sound', 'Sound effects', 'Moves, captures, checks and low-time ticks'),
       toggle('showLegalMoves', 'Show legal moves', 'Dots on the squares a piece can reach'),

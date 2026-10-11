@@ -1,6 +1,8 @@
-// Player progression, pure: XP and ranks, per-opponent records, achievements and the daily
-// puzzle streak. store/profile.js persists the profile and feeds it app events.
-//   applyEvent(profile, event) -> { profile, xp, unlocked: [achievement], rankUp: rank | null }
+// Player progression, pure: XP and ranks, per-opponent records, campaign stars, achievements and
+// the daily puzzle streak. store/profile.js persists the profile and feeds it app events.
+//   applyEvent(profile, event) -> { profile, xp, unlocked: [achievement], rankUp: rank | null, stars: [{ personaId, id }] }
+
+import { campaignView, starsForWin, awardStars, totalStars, STAR_RULES } from './campaign.js';
 
 export const RANKS = [
   { id: 'pawn', name: 'Pawn', icon: '♙', min: 0 },
@@ -50,6 +52,7 @@ export function emptyProfile() {
     openings: 0,
     daily: { last: null, streak: 0, best: 0, solved: 0 },
     puzzles: { solved: 0, bestRating: 0, rushBest: 0 },
+    campaign: {}, // personaId -> { win, fast, clean }
     achievements: {}, // id -> ISO date unlocked
   };
 }
@@ -64,6 +67,11 @@ export function normalizeProfile(raw) {
   for (const k of Object.keys(base.online)) out.online[k] = num(raw.online?.[k]);
   out.training = { games: num(raw.training?.games), bestAccuracy: num(raw.training?.bestAccuracy) };
   out.puzzles = { solved: num(raw.puzzles?.solved), bestRating: num(raw.puzzles?.bestRating), rushBest: num(raw.puzzles?.rushBest) };
+  if (raw.campaign && typeof raw.campaign === 'object') {
+    for (const [id, st] of Object.entries(raw.campaign)) {
+      if (/^[a-z]{1,20}$/.test(id) && st && typeof st === 'object') out.campaign[id] = Object.fromEntries(STAR_RULES.map((r) => [r.id, st[r.id] === true]));
+    }
+  }
   const d = raw.daily ?? {};
   out.daily = {
     last: typeof d.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.last) ? d.last : null,
@@ -100,6 +108,8 @@ export const ACHIEVEMENTS = [
   { id: 'puzzle-2000', icon: '🗡️', title: 'Tactical genius', text: 'Reach a puzzle rating of 2000.', test: (p) => p.puzzles.bestRating >= 2000 },
   { id: 'rush-15', icon: '⚡', title: 'Rush hour', text: 'Score 15 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 15 },
   { id: 'rush-25', icon: '🌩️', title: 'Lightning', text: 'Score 25 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 25 },
+  { id: 'stars-5', icon: '⭐', title: 'Rising star', text: 'Earn 5 campaign stars.', test: (p) => totalStars(p.campaign) >= 5 },
+  { id: 'stars-15', icon: '🌠', title: 'Constellation', text: 'Earn all 15 campaign stars.', test: (p) => totalStars(p.campaign) >= 15 },
 ];
 
 // Calendar helpers on local dates written as YYYY-MM-DD.
@@ -126,10 +136,19 @@ function outcomeFor(status, color) {
 //   { type: 'lesson', total } · { type: 'opening', total } · { type: 'daily', day: 'YYYY-MM-DD' }
 //   { type: 'sync', lessons, openings }
 //   { type: 'puzzle', solved, rating } · { type: 'rush', score }
+//   { type: 'clean', personaId } (a reviewed win without a blunder: the campaign's third star)
 export function applyEvent(input, event, { now = new Date() } = {}) {
   const p = structuredClone(normalizeProfile(input));
   const before = rankFor(p.xp);
   let xp = 0;
+  const stars = [];
+  // Stars only count against an opponent the campaign has opened.
+  const earnStars = (personaId, earnedStars) => {
+    if (!campaignView(p.campaign).find((v) => v.persona.id === personaId)?.unlocked) return;
+    const r = awardStars(p.campaign, personaId, earnedStars);
+    p.campaign = r.campaign;
+    for (const id of r.earned) stars.push({ personaId, id });
+  };
 
   if (event.type === 'game') {
     const counted = event.kind !== 'local' && event.kind !== 'practice';
@@ -151,6 +170,7 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
       if (result === 'draw') { r.d++; r.streak = 0; }
       if (result === 'loss') { r.l++; r.streak = 0; }
       p.bots[event.personaId] = r;
+      if (result === 'win' && Number.isFinite(event.plies)) earnStars(event.personaId, starsForWin({ plies: event.plies, playerColor: event.color }));
       const win = BOT_WIN_XP[event.personaId] ?? 20;
       xp = result === 'win' ? win : result === 'draw' ? Math.round(win / 2) : XP.botLoss;
     }
@@ -174,6 +194,10 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
     p.lessons = Math.max(p.lessons, event.lessons ?? 0);
     p.openings = Math.max(p.openings, event.openings ?? 0);
   }
+  // The blunder-free star only adds to a win already credited in the campaign (so old games, or
+  // wins against an opponent before the campaign reached it, cannot earn it later).
+  if (event.type === 'clean' && typeof event.personaId === 'string' && p.campaign[event.personaId]?.win) earnStars(event.personaId, { clean: true });
+  xp += 10 * stars.length; // each new star is worth a little extra
   if (event.type === 'puzzle') {
     if (Number.isFinite(event.rating)) p.puzzles.bestRating = Math.max(p.puzzles.bestRating, event.rating);
     if (event.solved) { p.puzzles.solved++; xp = XP.puzzle; }
@@ -204,7 +228,7 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
     }
   }
   const after = rankFor(p.xp);
-  return { profile: p, xp, unlocked, rankUp: after.id !== before.id ? after : null };
+  return { profile: p, xp, unlocked, rankUp: after.id !== before.id ? after : null, stars };
 }
 
 // The streak as it stands today: a streak whose last solve was before yesterday has lapsed.

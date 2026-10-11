@@ -75,7 +75,7 @@ test('very short games earn no XP and no accuracy credit, unless they end in che
   const local = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 2 }, { now: NOW });
   assert.equal(local.xp, 0);
   const quickMate = applyEvent(emptyProfile(), { type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId: 'novice', plies: 7 }, { now: NOW });
-  assert.equal(quickMate.xp, 20);
+  assert.equal(quickMate.xp, 20 + 20, 'win XP plus two campaign stars');
   const longGame = applyEvent(emptyProfile(), { type: 'game', kind: 'local', status: resign, color: null, plies: 40 }, { now: NOW });
   assert.equal(longGame.xp, XP.local);
 });
@@ -156,4 +156,35 @@ test('puzzles and Puzzle Rush earn XP and achievements', () => {
   assert.equal(r.xp, 32);
   assert.ok(r.unlocked.some((a) => a.id === 'rush-15'));
   assert.equal(applyEvent(r.profile, { type: 'rush', score: 40 }, { now: NOW }).xp, XP.rushMax);
+});
+
+test('campaign stars: a win and a quick win from an open opponent; clean from a review; locked opponents give none', () => {
+  const won = (personaId, plies) => ({ type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId, plies });
+  let r = applyEvent(emptyProfile(), won('novice', 40), { now: NOW });
+  assert.deepEqual(r.stars.map((s) => s.id), ['win', 'fast']);
+  assert.equal(r.xp, 20 + 20);
+  r = applyEvent(r.profile, { type: 'clean', personaId: 'novice' }, { now: NOW });
+  assert.deepEqual(r.stars, [{ personaId: 'novice', id: 'clean' }]);
+  assert.equal(r.xp, 10);
+  // No blunder-free star without a credited win first (e.g. an old game reviewed later).
+  assert.deepEqual(applyEvent(r.profile, { type: 'clean', personaId: 'amateur' }, { now: NOW }).stars, []);
+  // Magnus is locked until Professor Hoot is beaten.
+  const locked = applyEvent(r.profile, won('grandmaster', 40), { now: NOW });
+  assert.deepEqual(locked.stars, []);
+  assert.equal(locked.profile.bots.grandmaster.w, 1, 'the win still counts in the record');
+  r = applyEvent(r.profile, won('amateur', 200), { now: NOW });
+  assert.deepEqual(r.stars.map((s) => s.id), ['win']);
+});
+
+test('five stars unlock Rising star', () => {
+  let p = emptyProfile();
+  const ids = [];
+  for (const persona of ['novice', 'amateur']) {
+    const r = applyEvent(p, { type: 'game', kind: 'bot', status: win('w'), color: 'w', personaId: persona, plies: 30 }, { now: NOW });
+    p = r.profile;
+    ids.push(...r.unlocked.map((a) => a.id));
+  }
+  const r = applyEvent(p, { type: 'clean', personaId: 'novice' }, { now: NOW });
+  ids.push(...r.unlocked.map((a) => a.id));
+  assert.ok(ids.includes('stars-5'));
 });

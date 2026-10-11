@@ -6,6 +6,7 @@ import { rankFor, ACHIEVEMENTS, currentStreak, dayKey } from '../core/progressio
 import { PERSONAS } from '../data/personas.js';
 import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
+import { totalStars } from '../core/campaign.js';
 import { loadPuzzleStats } from '../store/puzzle-stats.js';
 
 function rankBlock(profile) {
@@ -40,6 +41,10 @@ export function dashboard() {
       h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
       h('strong', {}, solved ? 'Solved today ✓' : 'A new puzzle is waiting'),
       h('span', { class: 'muted', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
+    h('a', { class: 'dash-card', href: '#/campaign', testid: 'dash-campaign' },
+      h('span', { class: 'dash-eyebrow' }, 'Campaign'),
+      h('strong', {}, `${totalStars(profile.campaign)}/15 ★`),
+      h('span', { class: 'muted' }, 'Beat the opponents in order, collect stars')),
     h('a', { class: 'dash-card', href: '#/puzzles', testid: 'dash-puzzles' },
       h('span', { class: 'dash-eyebrow' }, 'Puzzles'),
       h('strong', {}, `Puzzle rating ${puzzles.rating}`),

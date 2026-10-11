@@ -51,6 +51,8 @@ export function renderPlayMenu(outlet) {
         optionCard({ testid: 'opt-online', href: '#/play/online/new', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.' }))),
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against the computer'),
+      h('div', { class: 'option-list' },
+        optionCard({ testid: 'opt-campaign', href: '#/campaign', icon: '🗺️', title: 'Campaign', eyebrow: 'Earn stars', text: 'Beat the opponents in order and collect three stars from each.' })),
       h('div', { class: 'option-list', testid: 'opt-computer' },
         PERSONAS.map((p) => optionCard({ testid: `opt-bot-${p.id}`, href: `#/play/bot/new?persona=${p.id}`, icon: p.avatar, eyebrow: `${p.level} · ${p.rating}`, title: p.name, text: p.tagline }))))));
 }

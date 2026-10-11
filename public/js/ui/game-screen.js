@@ -20,10 +20,12 @@
 import { h, fill, pieceGlyph, COLOR_NAME } from './dom.js';
 import { detectOpening } from '../core/openings.js';
 import { savedGameId } from '../store/games.js';
+import { loadProfile } from '../store/profile.js';
+import { cleanStarAvailable } from '../core/campaign.js';
 import { BoardView } from './board-view.js';
 import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
-import { describeResult, RULE_NOTES, otherColor } from '../core/rules.js';
+import { describeResult, RULE_NOTES, otherColor, START_FEN } from '../core/rules.js';
 import { bus } from '../core/events.js';
 import { formatClock } from '../core/clock.js';
 import { appSettings, ANIMATION_MS } from '../store/settings.js';
@@ -386,6 +388,10 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
         h('p', { class: 'result-reason', testid: 'game-reason' }, describeResult(status)),
         RULE_NOTES[status.reason] ? h('p', { class: 'muted rule-note' }, RULE_NOTES[status.reason]) : null,
         session.resultDetails?.() ?? null,
+        session.kind === 'bot' && status.winner && status.winner === session.playerColor && savedGameId(session)
+          && rules.history({ verbose: true })[0]?.before === START_FEN && cleanStarAvailable(loadProfile().campaign, session.persona?.id)
+          ? h('p', { class: 'muted', testid: 'clean-star-hint' }, '⭐ Review the game: a win without a blunder earns an extra campaign star.')
+          : null,
       ],
       actions: [
         savedGameId(session) ? { label: 'Review game', testid: 'btn-review', onClick: () => { location.hash = `#/review/${savedGameId(session)}`; } } : null,
