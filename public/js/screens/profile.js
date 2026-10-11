@@ -13,6 +13,45 @@ import { canInstall, install } from '../ui/pwa.js';
 import { currentUser, lastSynced, login, register, logout, syncNow } from '../store/account.js';
 import { bus } from '../core/events.js';
 import { fill } from '../ui/dom.js';
+import { pushSupported, currentSubscription, enableReminders, disableReminders, savedHour, REMINDER_HOURS } from '../ui/reminders.js';
+
+// Daily-puzzle reminders (signed-in players): on/off for this browser, and the hour.
+function remindersSection() {
+  const section = h('section', { class: 'menu-section reminders', testid: 'reminders', 'aria-labelledby': 'reminders-heading' });
+  let on = false;
+  let message = '';
+  let busy = false;
+  const hourSelect = h('select', { testid: 'reminder-hour', 'aria-label': 'Reminder time' },
+    REMINDER_HOURS.map((hr) => { const o = h('option', { value: hr }, `${String(hr).padStart(2, '0')}:00`); o.selected = hr === savedHour(); return o; }));
+  async function toggle(enable) {
+    busy = true; message = ''; render();
+    if (enable) {
+      const r = await enableReminders(Number(hourSelect.value));
+      on = r.ok;
+      message = r.ok ? 'Reminders are on for this browser.' : r.error;
+    } else {
+      await disableReminders();
+      on = false;
+      message = 'Reminders are off.';
+    }
+    busy = false;
+    render();
+  }
+  function render() {
+    fill(section,
+      h('h2', { id: 'reminders-heading' }, 'Daily reminder'),
+      !pushSupported()
+        ? h('p', { class: 'muted' }, 'This browser cannot show reminders. On iPhone, add the app to your home screen first.')
+        : [h('p', { class: 'muted' }, 'One notification a day, at the hour you choose, only if today\'s puzzle is still unsolved.'),
+          h('div', { class: 'lesson-actions' },
+            h('label', { class: 'field inline' }, h('span', {}, 'Time'), hourSelect),
+            h('button', { class: `btn${on ? '' : ' btn-primary'}`, type: 'button', testid: 'btn-reminders', disabled: busy, onClick: () => toggle(!on) }, on ? 'Turn off' : 'Turn on reminders')),
+          message ? h('p', { class: 'small', role: 'status', testid: 'reminders-status' }, message) : null]);
+  }
+  render();
+  currentSubscription().then((sub) => { on = Boolean(sub); render(); }).catch(() => {});
+  return section;
+}
 
 // Sign in / create an account, or (signed in) who you are and when progress last synced.
 function accountSection() {
@@ -164,6 +203,7 @@ function draw(outlet, redraw) {
     h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Profile'),
     h('h1', { tabindex: -1, testid: 'profile-title' }, 'Your profile'),
     account.el,
+    currentUser() ? remindersSection() : null,
     h('section', { class: 'menu-section' }, rankBlock(profile),
       h('p', { class: 'muted' }, `Games: ${g.played} · Won ${g.won} · Drawn ${g.drawn} · Lost ${g.lost} · Checkmates ${g.mates}`),
       h('p', { class: 'muted' }, `Daily puzzle: best streak ${profile.daily.best}, solved ${profile.daily.solved} · Lessons ${profile.lessons} · Openings ${profile.openings} · Coached games ${profile.training.games} (best accuracy ${profile.training.bestAccuracy}%)`)),

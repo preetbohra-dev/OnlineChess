@@ -303,9 +303,18 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - Online play pre-fills the account name.
 - Admin: `node scripts/admin.mjs reset-password <user>` / `delete-user <user>`.
 
+### Slice 19: daily reminders (Web Push)
+
+- Signed-in players see a "Daily reminder" section on the profile (`reminders`): a time (`reminder-hour`: 08:00, 12:00, 17:00, 19:00 or 21:00) and `btn-reminders` (turn on / off); `reminders-status` reports the result. Guests see nothing; unsupported browsers get an explanation (iPhone: add to home screen first).
+- Turning on asks for notification permission, subscribes the browser with the server's VAPID public key (`GET /api/push/key`) and registers the subscription with the time zone and hour (`POST /api/push/subscribe`; at most 5 per account). `POST /api/push/unsubscribe` removes it.
+- The server checks every 10 minutes and sends one notification per day, after the chosen local hour, only when the synced profile shows today's puzzle unsolved. The text mentions a live streak. Expired subscriptions (404/410) are deleted.
+- Only https endpoints of the browsers' push services are accepted (FCM, Mozilla, Apple, Windows), so the server never sends requests elsewhere.
+- The service worker shows the notification; tapping it opens `#/daily`.
+- VAPID keys live outside the repository (`VAPID_FILE`, default `~/.jodhpur-studio/secrets/chess-vapid.json`, mode 600). `PUSH=off` disables reminders; `PUSH=dry` (tests) sends nothing.
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 19–20 (docs/PLAN-2.md).
+- Plan 2 slice 20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 

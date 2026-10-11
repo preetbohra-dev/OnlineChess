@@ -10,6 +10,7 @@ import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { createApi } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
+import { startReminders } from './push.js';
 import { createRoomManager } from './rooms.js';
 import { parseClientMessage, MAX_MESSAGE_BYTES } from './protocol.js';
 import { createTokenBucket, createConnectionCounter } from './rate-limit.js';
@@ -76,11 +77,12 @@ export function createAppServer({
   db = null, // accounts database (server/db.js); without it /api/ answers 503
   authRate,
   syncRate,
+  push = null, // { publicKey } when daily reminders are running
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}) });
+  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push });
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
@@ -188,8 +190,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const dbPath = process.env.DB_PATH || DEFAULT_DB_PATH;
   const db = dbPath === 'off' ? null : openDatabase(dbPath);
   if (db && dbPath !== ':memory:') scheduleBackups(db, path.join(path.dirname(dbPath), 'backups'));
+  // Daily reminders need accounts (to know whether today's puzzle is solved). PUSH=off disables them.
+  const firstHost = (process.env.ALLOWED_HOSTS ?? '').split(',').map((x) => x.trim()).find(Boolean);
+  const reminders = db && process.env.PUSH !== 'off'
+    ? startReminders(db, { subject: process.env.VAPID_SUBJECT || (firstHost ? `https://${firstHost}` : 'mailto:onlinechess@localhost'), dryRun: process.env.PUSH === 'dry' })
+    : null;
   const app = createAppServer({
     db,
+    push: reminders ? { publicKey: reminders.publicKey } : null,
     rooms: { maxRoomsPerAddress: intEnv('ROOMS_PER_ADDRESS', 5), createsPerHour: intEnv('ROOM_CREATES_PER_HOUR', 20) },
     connectRate: { rate: 1, burst: intEnv('WS_CONNECT_BURST', 10) },
     maxConnectionsPerIp: intEnv('WS_CONNECTIONS_PER_ADDRESS', 8),

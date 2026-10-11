@@ -1,11 +1,13 @@
 // The accounts and sync API under /api/. JSON only, no caching, strict limits:
 //   POST /api/register {username, password} · POST /api/login {username, password}
 //   POST /api/logout · GET /api/me · GET /api/state · PUT /api/state {state}
+//   GET /api/push/key · POST /api/push/subscribe {subscription, tz, hour} · POST /api/push/unsubscribe {endpoint}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
 // SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock
 // after repeated wrong passwords (see auth.js).
 import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js';
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
+import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
 
 export const SESSION_COOKIE = 'oc_session';
 const AUTH_BODY_BYTES = 2 * 1024;
@@ -57,6 +59,7 @@ export function createApi({
   authRate = { rate: 0.2, burst: 10 }, // sign-in attempts per address (IPv6: per /64)
   hashRate = { rate: 30, burst: 60 }, // password hashes per second for the whole server (CPU guard)
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
+  push = null, // { publicKey } when reminders are running
 }) {
   const authBuckets = createBucketMap(authRate);
   const syncBuckets = createBucketMap(syncRate);
@@ -118,6 +121,34 @@ export function createApi({
         const at = now();
         db.q.putState.run(user.id, json, at);
         return send(res, 200, { state: merged, updatedAt: at });
+      }
+
+      case 'GET /api/push/key':
+        return push ? send(res, 200, { publicKey: push.publicKey }) : send(res, 503, { error: 'Reminders are not available.' });
+
+      case 'POST /api/push/subscribe': {
+        if (!push) return send(res, 503, { error: 'Reminders are not available.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`u${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const sub = validSubscription(body.value?.subscription);
+        const { tz, hour } = body.value ?? {};
+        if (!sub || !validTimeZone(tz) || !Number.isInteger(hour) || hour < 0 || hour > 23) return send(res, 400, { error: 'Invalid subscription.' });
+        if (db.q.countAllPush.get().n >= MAX_SUBSCRIPTIONS) return send(res, 503, { error: 'Reminders are full right now. Try again later.' });
+        db.transaction(() => {
+          db.q.upsertPush.run(user.id, sub.endpoint, sub.keys.p256dh, sub.keys.auth, tz, hour, now());
+          while (db.q.countPush.get(user.id).n > MAX_SUBSCRIPTIONS_PER_USER) db.q.oldestPush.run(user.id);
+        });
+        return send(res, 200, { ok: true });
+      }
+
+      case 'POST /api/push/unsubscribe': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        if (typeof body.value?.endpoint === 'string') db.q.deletePush.run(body.value.endpoint, user.id);
+        return send(res, 200, { ok: true });
       }
 
       default:

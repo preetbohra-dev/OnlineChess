@@ -29,6 +29,12 @@ From Slice 5 onward the server needs the `ws` package. Run `npm ci --omit=dev --
 - To restore a backup: stop the agent, copy a `backups/chess-YYYY-MM-DD.db` over `chess.db` (and remove `chess.db-wal`/`-shm`), then start the agent.
 - To reset a password or delete an account: `DB_PATH=~/.jodhpur-studio/data/chess.db node scripts/admin.mjs reset-password <user>` (or `delete-user <user>`), from the live checkout.
 
+## Daily reminders (Web Push)
+
+- The server creates its Web Push (VAPID) keys on first start in `~/.jodhpur-studio/secrets/chess-vapid.json` (mode 600). Keep that file: new keys would invalidate every existing subscription.
+- The live server sends from this Mac to the browsers' push services (Google, Mozilla, Apple, Microsoft), so it needs outbound https.
+- `PUSH=off` in the launchd environment disables reminders.
+
 ## Ports
 
 - **Tambola uses 3000.** OnlineChess defaults to **3200**.
