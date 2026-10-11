@@ -23,6 +23,7 @@ import { renderCoachSetup } from './screens/coach-setup.js';
 import { renderLearnHub, renderLesson, renderDaily } from './screens/learn.js';
 import { renderProfile } from './screens/profile.js';
 import { renderGames, renderReview } from './screens/review.js';
+import { renderPuzzles, renderRush } from './screens/puzzles.js';
 import { trackGames } from './store/games.js';
 import { trackProgress } from './store/profile.js';
 import { installCelebrations } from './ui/celebrate.js';
@@ -181,6 +182,8 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/daily$/, title: 'Daily puzzle', render: renderDaily },
   { pattern: /^\/profile$/, title: 'Profile', render: renderProfile },
   { pattern: /^\/games$/, title: 'Your games', render: renderGames },
+  { pattern: /^\/puzzles$/, title: 'Puzzles', render: renderPuzzles },
+  { pattern: /^\/rush$/, title: 'Puzzle Rush', render: renderRush },
   { pattern: /^\/review\/(?<id>[a-z0-9]{6,24})$/, title: 'Game review', render: (outlet, ctx) => renderReview(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },
   { pattern: /^\/train\/coach\/play$/, title: 'Coached game', render: renderCoachGame },

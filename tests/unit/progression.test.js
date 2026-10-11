@@ -144,3 +144,16 @@ test('achievement ids are unique and there are at least twelve', () => {
   assert.ok(ACHIEVEMENTS.length >= 12);
   assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, ACHIEVEMENTS.length);
 });
+
+test('puzzles and Puzzle Rush earn XP and achievements', () => {
+  let r = applyEvent(emptyProfile(), { type: 'puzzle', solved: true, rating: 1520 }, { now: NOW });
+  assert.equal(r.xp, XP.puzzle);
+  assert.ok(r.unlocked.some((a) => a.id === 'puzzle-1500'));
+  r = applyEvent(r.profile, { type: 'puzzle', solved: false, rating: 1490 }, { now: NOW });
+  assert.equal(r.xp, 0);
+  assert.equal(r.profile.puzzles.bestRating, 1520);
+  r = applyEvent(r.profile, { type: 'rush', score: 16 }, { now: NOW });
+  assert.equal(r.xp, 32);
+  assert.ok(r.unlocked.some((a) => a.id === 'rush-15'));
+  assert.equal(applyEvent(r.profile, { type: 'rush', score: 40 }, { now: NOW }).xp, XP.rushMax);
+});

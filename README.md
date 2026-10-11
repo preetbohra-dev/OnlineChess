@@ -10,7 +10,9 @@ Play, learn and train chess in the browser — from your first game to grandmast
   - Lessons on four levels: the rules and basic mates (Novice), tactics (Amateur), endgames played out against Stockfish (Pro), and famous combinations and studies (Grand Master).
   - An openings trainer: 15 classic openings, each explained move by move and practised from memory.
   - A rules handbook covering every FIDE rule.
-- **Progress**: XP and ranks, records against every computer opponent, 14 achievements, a daily puzzle with a streak, and a home dashboard that shows what to do next.
+  - Rated puzzles: about 5,000 real puzzles from the Lichess database, served near your puzzle rating (Glicko-2), with theme filters; and Puzzle Rush (three minutes, three strikes).
+- **Game review** after every game: accuracy, an evaluation graph, key moments, and "retry" to find a better move where you went wrong.
+- **Progress**: XP and ranks, records against every computer opponent, 19 achievements, a daily puzzle with a streak, and a home dashboard that shows what to do next.
 
 All FIDE Laws of Chess are enforced. That includes castling restrictions, en passant and promotion. It also covers threefold, fivefold, fifty and seventy-five move draws, insufficient material, and the timeout rule. See [docs/RULES-IMPL.md](docs/RULES-IMPL.md).
 
@@ -75,3 +77,4 @@ Third-party components:
 - [cm-chessboard](https://github.com/shaack/cm-chessboard): MIT
 - [ws](https://github.com/websockets/ws): MIT
 - [Stockfish](https://stockfishchess.org) via [stockfish.js](https://github.com/nmrugg/stockfish.js): GPL-3.0
+- Puzzles: the [Lichess puzzle database](https://database.lichess.org/#puzzles), CC0. `npm run puzzles` rebuilds `public/data/puzzles.json` (needs the `zstd` command-line tool).

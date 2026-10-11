@@ -3,10 +3,10 @@ import { h } from '../ui/dom.js';
 import { confirmDialog } from '../ui/modal.js';
 import { loadProfile, resetProfile } from '../store/profile.js';
 import { rankFor, ACHIEVEMENTS, currentStreak, dayKey } from '../core/progression.js';
-import { dailyPuzzle, dailyTier } from '../core/daily.js';
 import { PERSONAS } from '../data/personas.js';
 import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
+import { loadPuzzleStats } from '../store/puzzle-stats.js';
 
 function rankBlock(profile) {
   const rank = rankFor(profile.xp);
@@ -31,14 +31,19 @@ export function dashboard() {
   const nextLesson = ALL_LESSONS.find((l) => !done.has(l.id));
   const unlocked = ACHIEVEMENTS.filter((a) => profile.achievements[a.id]).length;
   const g = profile.games;
+  const puzzles = loadPuzzleStats();
   return h('section', { class: 'dashboard', testid: 'dashboard', 'aria-label': 'Your progress' },
     h('a', { class: 'dash-card dash-rank', href: '#/profile', testid: 'dash-profile' },
       rankBlock(profile),
       h('span', { class: 'muted' }, `🏅 ${unlocked}/${ACHIEVEMENTS.length} achievements · ${g.won}W ${g.drawn}D ${g.lost}L`)),
     h('a', { class: `dash-card dash-daily${solved ? ' done' : ''}`, href: '#/daily', testid: 'dash-daily' },
       h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
-      h('strong', {}, solved ? 'Solved today ✓' : dailyPuzzle(today, dailyTier(profile.xp)).title),
+      h('strong', {}, solved ? 'Solved today ✓' : 'A new puzzle is waiting'),
       h('span', { class: 'muted', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
+    h('a', { class: 'dash-card', href: '#/puzzles', testid: 'dash-puzzles' },
+      h('span', { class: 'dash-eyebrow' }, 'Puzzles'),
+      h('strong', {}, `Puzzle rating ${puzzles.rating}`),
+      h('span', { class: 'muted' }, puzzles.rushBest ? `Rush best: ${puzzles.rushBest}` : 'Try Puzzle Rush: 3 minutes, 3 strikes')),
     h('a', { class: 'dash-card', href: '#/games', testid: 'dash-games' },
       h('span', { class: 'dash-eyebrow' }, 'Your games'),
       h('strong', {}, 'Review your games'),

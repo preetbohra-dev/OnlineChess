@@ -465,3 +465,15 @@ html { scroll-padding-top: 72px; }
 .game-row-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .game-row-result { font-weight: 700; }
 @media (max-width: 900px) { .game.review .review-panel { order: 2; } .game.review .crumbs { order: 0; } }
+
+/* Puzzles and Rush */
+.puzzle-rating { margin: 0; }
+.rating-change { font-weight: 700; margin-left: 4px; }
+.rating-change.up { color: var(--accent); }
+.rating-change.down { color: var(--danger); }
+.theme-filter summary { cursor: pointer; color: var(--muted); }
+.theme-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rush-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 1.1rem; }
+.rush-timer { font: 700 1.6rem var(--font-mono, ui-monospace, monospace); }
+.rush-strikes { letter-spacing: 4px; color: var(--danger); }
+.small { font-size: .8rem; }
