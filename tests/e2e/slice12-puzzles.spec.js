@@ -79,6 +79,7 @@ test('Puzzle Rush: solve, three strikes end the run, best score is kept', async 
   }
   await expect(page.getByTestId('rush-result')).toContainText('You scored 1');
   await expect(page.getByTestId('rush-result')).toContainText('personal best');
+  await expect(page.getByTestId('btn-rush-share')).toBeVisible();
   await page.goto('/#/');
   await page.goto('/#/rush');
   await expect(page.getByTestId('rush-best')).toHaveText('1');

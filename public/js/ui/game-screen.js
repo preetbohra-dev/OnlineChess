@@ -22,6 +22,8 @@ import { detectOpening } from '../core/openings.js';
 import { savedGameId } from '../store/games.js';
 import { loadProfile } from '../store/profile.js';
 import { cleanStarAvailable } from '../core/campaign.js';
+import { prepareShare, sharePrepared } from './share.js';
+import { challengeUrl, challengeText, canShareWin } from '../core/challenge.js';
 import { BoardView } from './board-view.js';
 import { openModal, confirmDialog, choosePromotion, closeAllModals } from './modal.js';
 import { toast } from './toast.js';
@@ -378,7 +380,39 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     }
   }
 
+  // A win against the computer from the start position can be shared as a picture and a challenge.
+  function shareable(status) {
+    return canShareWin({ kind: session.kind, status, playerColor: session.playerColor, startFen: rules.history({ verbose: true })[0]?.before });
+  }
+
+  // The card is drawn as soon as the result is shown, so the Share tap can open the share sheet
+  // at once; repeated taps while a share is open are ignored.
+  let preparedShare = null;
+  let sharing = false;
+  function prepareWinShare(status) {
+    const moves = Math.ceil(rules.history().length / 2);
+    const c = { kind: 'bot', personaId: session.persona.id, moves, accuracy: null };
+    const opening = detectOpening(rules.history({ verbose: true }));
+    preparedShare = prepareShare({
+      card: {
+        fen: rules.fen(),
+        orientation: session.playerColor,
+        title: `I beat ${session.persona.name} in ${moves} moves!`,
+        lines: [`${session.persona.level} · ${describeResult(status)}`, opening ? `${opening.eco} · ${opening.name}` : '', 'Can you do better?'].filter(Boolean),
+      },
+      text: challengeText(c, { self: true }),
+      url: challengeUrl(location.origin, c),
+      filename: 'onlinechess-win.png',
+    });
+  }
+  function shareWin() {
+    if (!preparedShare || sharing) return;
+    sharing = true;
+    sharePrepared(preparedShare).finally(() => { sharing = false; });
+  }
+
   function showGameOver(status) {
+    if (shareable(status)) prepareWinShare(status);
     openModal({
       testid: 'game-over-modal',
       className: 'game-over',
@@ -394,6 +428,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
           : null,
       ],
       actions: [
+        shareable(status) ? { label: 'Share', testid: 'btn-share', keepOpen: true, onClick: () => shareWin() } : null,
         savedGameId(session) ? { label: 'Review game', testid: 'btn-review', onClick: () => { location.hash = `#/review/${savedGameId(session)}`; } } : null,
         { label: 'Copy PGN', keepOpen: true, onClick: () => copyText(pgn(), 'PGN') },
         { label: 'Close', testid: 'btn-close-result' },

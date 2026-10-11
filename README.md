@@ -12,6 +12,7 @@ Play, learn and train chess in the browser — from your first game to grandmast
   - A rules handbook covering every FIDE rule.
   - Rated puzzles: about 5,000 real puzzles from the Lichess database, served near your puzzle rating (Glicko-2), with theme filters; and Puzzle Rush (three minutes, three strikes).
 - **Game review** after every game: accuracy, an evaluation graph, key moments, and "retry" to find a better move where you went wrong.
+- **Share and challenge**: share a win or a Puzzle Rush score as a picture with a link that challenges a friend to beat it.
 - **Weak spots**: your own mistakes come back as puzzles on a spaced-repetition schedule until you have them mastered.
 - **Progress**: XP and ranks, records against every computer opponent, a campaign with three stars per opponent, 22 achievements, weekly quests that earn streak freezes, board themes and piece sets unlocked by rank, a daily puzzle with a streak, and a home dashboard that shows what to do next.
 

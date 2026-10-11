@@ -6,6 +6,8 @@ import { createPuzzle } from '../core/puzzle.js';
 import { parseRow, toLesson, choosePuzzle, THEMES, RUSH, rushTarget } from '../core/puzzle-library.js';
 import { loadLibrary, loadPuzzleStats, recordPuzzle, recordRush, markSeen } from '../store/puzzle-stats.js';
 import { playSound, soundForMove } from '../ui/sound.js';
+import { prepareShare, sharePrepared } from '../ui/share.js';
+import { challengeUrl, challengeText } from '../core/challenge.js';
 
 const SETUP_MS = 500;
 
@@ -284,6 +286,7 @@ function mountRush(outlet, puzzles, seconds) {
     current?.destroy();
     board.setInput(null);
     if (run.counted) run.best = recordRush(run.score).best;
+    if (run.counted && run.score > 0) prepareRushShare(run.score);
     run.reason = reason;
     live.say(`${reason} Final score ${run.score}.`);
     playSound('end');
@@ -320,8 +323,27 @@ function mountRush(outlet, puzzles, seconds) {
         ? [h('p', { class: 'lesson-feedback lesson-success', testid: 'rush-result' }, `${run.reason} You scored ${run.score}.${!run.counted ? ' (Practice run: not counted.)' : run.best ? ' New personal best!' : ` Your best is ${stats.rushBest}.`}`),
           h('div', { class: 'lesson-actions' },
             h('button', { class: 'btn btn-primary', type: 'button', testid: 'btn-rush-again', onClick: () => start({ relaxed: run.endsAt == null }) }, 'Play again'),
+            run.counted && run.score > 0 ? h('button', { class: 'btn', type: 'button', testid: 'btn-rush-share', onClick: shareRush }, 'Share') : null,
             h('a', { class: 'btn', href: '#/puzzles' }, 'Rated puzzles'))]
         : h('p', { class: 'muted' }, `${current?.color === 'w' ? 'White' : 'Black'} to move · puzzle rating ~${lesson.rating}`));
+  }
+
+  // Drawn when the run ends, so the Share tap opens the share sheet at once.
+  let preparedShare = null;
+  let sharing = false;
+  function prepareRushShare(score) {
+    const c = { kind: 'rush', score };
+    preparedShare = prepareShare({
+      card: { fen: lesson.fen, orientation: current?.color ?? 'w', title: `I scored ${score} in Puzzle Rush!`, lines: ['Three minutes, three strikes.', 'Can you beat it?'] },
+      text: challengeText(c, { self: true }),
+      url: challengeUrl(location.origin, c),
+      filename: 'onlinechess-rush.png',
+    });
+  }
+  function shareRush() {
+    if (!preparedShare || sharing) return;
+    sharing = true;
+    sharePrepared(preparedShare).finally(() => { sharing = false; });
   }
 
   render();

@@ -261,9 +261,20 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - `weakspot-panel` has `data-state` (asking/right/wrong); `btn-next-card` and `btn-weakspots-done` move on. With nothing due: `weakspots-empty`.
 - 3 XP per right answer. New achievement: Weak no more (10 cards mastered; 22 achievements in all).
 
+### Slice 16: share cards and challenge links
+
+- **Share** (`btn-share` in the result window after beating the computer from the start position; `btn-rush-share` after a counted Puzzle Rush with a score) draws a 1200×630 PNG card: the final position in your board colours, the result, the opponent and the opening.
+  - The card is shared through the system share sheet where the browser supports files.
+  - Otherwise the link alone is shared; failing that, the image is downloaded and the challenge text and link are copied.
+  - `__oc.lastShare` records the last share for tests.
+- **Challenge links** (`#/challenge?bot=<persona>&moves=N[&acc=P]` or `#/challenge?rush=N`):
+  - `challenge-text` reads, for example, "Your friend beat Magnus the Wizard (Grand Master) in 34 moves. Can you?"
+  - `btn-accept-challenge` opens the same opponent's setup, or Puzzle Rush.
+  - Every value is validated; anything else shows "Challenge not found".
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 16–20 (docs/PLAN-2.md).
+- Plan 2 slices 17–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 
