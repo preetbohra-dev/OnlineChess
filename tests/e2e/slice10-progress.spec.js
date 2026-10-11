@@ -84,7 +84,7 @@ test('the profile is reachable from the top bar and lists every achievement', as
 
 test('no horizontal scrolling on a small phone (360px) on the home and profile pages', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
-  for (const route of ['/#/', '/#/profile', '/#/daily', '/#/openings']) {
+  for (const route of ['/#/', '/#/profile', '/#/daily', '/#/openings', '/#/campaign', '/#/weekly', '/#/puzzles']) {
     await page.goto(route);
     await page.waitForTimeout(200);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

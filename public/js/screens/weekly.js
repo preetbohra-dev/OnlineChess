@@ -38,7 +38,7 @@ export function renderWeekly(outlet) {
   let currentWeek = null;
 
   (async () => {
-    const user = currentUser() ?? await refreshMe();
+    const user = currentUser() ?? await refreshMe().catch(() => null);
     const [lb, ch] = await Promise.all([loadLeaderboard(), user ? loadChallenge() : Promise.resolve(null)]);
     if (destroyed) return;
     if (!lb.ok) {

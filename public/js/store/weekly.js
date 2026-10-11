@@ -3,10 +3,15 @@ import { toast } from '../ui/toast.js';
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-OC-Request': '1' };
 
+// Never throws: offline or a failed request comes back as { ok: false, status: 0, json: { error } }.
 async function call(method, path, body) {
-  const res = await fetch(path, { method, headers: body === undefined ? {} : HEADERS, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, json };
+  try {
+    const res = await fetch(path, { method, headers: body === undefined ? {} : HEADERS, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
+    const json = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, json };
+  } catch {
+    return { ok: false, status: 0, json: { error: 'You are offline. The weekly challenge needs a connection.' } };
+  }
 }
 
 export const loadChallenge = () => call('GET', '/api/challenge');

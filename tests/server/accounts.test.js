@@ -14,8 +14,8 @@ const PW = 'correct horse battery';
 test('credential rules', () => {
   assert.equal(validateCredentials('ab', PW), 'Usernames are 3–20 letters, digits, - or _.');
   assert.match(validateCredentials('alice', 'short'), /at least 10/);
-  assert.match(validateCredentials('alice', '1234567890'), /too easy/);
-  assert.match(validateCredentials('alice', 'alice-is-great'), /too easy/);
+  assert.match(validateCredentials('alice', '1234567890'), /too common/);
+  assert.match(validateCredentials('alice', 'alice-is-great'), /must not contain your username/);
   assert.match(validateCredentials('alice', 'x'.repeat(201)), /at most/);
   assert.equal(validateCredentials('alice_99', PW), null);
   assert.ok(validateCredentials('<script>', PW));

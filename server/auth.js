@@ -30,7 +30,8 @@ export function validateCredentials(username, password) {
   if (typeof username !== 'string' || !USERNAME.test(username)) return 'Usernames are 3–20 letters, digits, - or _.';
   if (typeof password !== 'string' || password.length < PASSWORD_MIN) return `Passwords need at least ${PASSWORD_MIN} characters.`;
   if (password.length > PASSWORD_MAX) return `Passwords can be at most ${PASSWORD_MAX} characters.`;
-  if (COMMON.has(password.toLowerCase()) || password.toLowerCase().includes(username.toLowerCase())) return 'That password is too easy to guess.';
+  if (password.toLowerCase().includes(username.toLowerCase())) return 'Your password must not contain your username.';
+  if (COMMON.has(password.toLowerCase())) return 'That password is too common — pick something harder to guess.';
   return null;
 }
 
