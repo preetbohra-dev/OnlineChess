@@ -74,6 +74,7 @@ export function trackProgress({ store = appStore() } = {}) {
     bus.on('puzzle:result', ({ solved, rating }) => recordEvent({ type: 'puzzle', solved, rating }, { store })),
     bus.on('rush:end', ({ score }) => recordEvent({ type: 'rush', score }, { store })),
     bus.on('review:retry-solved', () => recordEvent({ type: 'retry' }, { store })),
+    bus.on('weakspot:answered', ({ right, mastered }) => recordEvent({ type: 'weakspot', right, mastered }, { store })),
     // A reviewed game counts for quests; a reviewed win against the computer from the start
     // position, without a blunder, earns the campaign's third star.
     bus.on('game:reviewed', ({ id }) => {

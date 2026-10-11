@@ -8,6 +8,7 @@ import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
 import { totalStars } from '../core/campaign.js';
 import { questView } from '../core/quests.js';
+import { dueToday } from '../store/weakspots.js';
 
 // This week's quests, with progress bars.
 function questList(profile) {
@@ -43,6 +44,7 @@ export function dashboard() {
   const unlocked = ACHIEVEMENTS.filter((a) => profile.achievements[a.id]).length;
   const g = profile.games;
   const puzzles = loadPuzzleStats();
+  const weak = dueToday().length;
   return h('section', { class: 'dashboard', testid: 'dashboard', 'aria-label': 'Your progress' },
     h('a', { class: 'dash-card dash-rank', href: '#/profile', testid: 'dash-profile' },
       rankBlock(profile),
@@ -55,6 +57,10 @@ export function dashboard() {
       h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
       h('strong', {}, solved ? 'Solved today ✓' : 'A new puzzle is waiting'),
       h('span', { class: 'muted', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
+    h('a', { class: 'dash-card', href: '#/weak-spots', testid: 'dash-weakspots' },
+      h('span', { class: 'dash-eyebrow' }, 'Weak spots'),
+      h('strong', {}, weak ? `${weak} to practise today` : 'Nothing due today'),
+      h('span', { class: 'muted' }, 'Your own mistakes, back as puzzles')),
     h('a', { class: 'dash-card', href: '#/campaign', testid: 'dash-campaign' },
       h('span', { class: 'dash-eyebrow' }, 'Campaign'),
       h('strong', {}, `${totalStars(profile.campaign)}/15 ★`),

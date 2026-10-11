@@ -190,7 +190,7 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 
 ### Slice 10: progress and retention
 
-- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 21 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
+- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 22 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
 - **XP:** wins against the computer by level (20/40/70/120/200; draws half, losses 5), online games 30/15/10, coached games 15 plus accuracy/5, lessons 25, openings 20, the daily puzzle 30 plus 5 per streak day (up to a week), pass and play 5.
 - **Integrity:** games shorter than 8 moves each earn no XP or accuracy credit unless they end in checkmate; only games from the standard start position count toward records and achievements; a game from a set-up position (a `fen=` link, an opening played out) is practice and earns 5 XP.
 - **Daily puzzle** (`#/daily`): one puzzle per day, rotating through the lesson puzzles; players below the Rook rank get Novice and Amateur puzzles. Solving it starts or extends the streak (`daily-streak`); a missed day resets it.
@@ -251,9 +251,19 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - The daily page says when a freeze will cover the gap (`daily-streak`); a toast confirms when one is used.
   - Freezes are kept if the gap is too long to cover.
 
+### Slice 15: weak spots (spaced repetition of your own mistakes)
+
+- Mistakes and blunders become cards: from every reviewed game (your moves; both sides in pass and play) and from every move the coach grades in a coached game.
+  - A card is the position before the mistake. Its answers are the engine's best move, plus the second-best when that is not itself an inaccuracy or worse.
+- `#/weak-spots` (Training `opt-weakspots`; dashboard `dash-weakspots` shows how many are due) plays today's due cards.
+  - `weakspot-feedback` says what you played and asks for a better move.
+  - A right answer reschedules the card (1, 3, 7, then 21 days, then mastered); a wrong one shows the better move as an arrow and brings the card back tomorrow.
+  - `weakspot-panel` has `data-state` (asking/right/wrong); `btn-next-card` and `btn-weakspots-done` move on. With nothing due: `weakspots-empty`.
+- 3 XP per right answer. New achievement: Weak no more (10 cards mastered; 22 achievements in all).
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 15–20 (docs/PLAN-2.md).
+- Plan 2 slices 16–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 
