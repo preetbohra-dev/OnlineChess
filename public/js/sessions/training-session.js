@@ -8,6 +8,7 @@ import { moveAccuracy, GRADE_LABEL } from '../core/classify.js';
 import { otherColor } from '../core/rules.js';
 import { hangingPieces, PIECE_NAME } from '../core/tactics.js';
 import { h } from '../ui/dom.js';
+import { bus } from '../core/events.js';
 
 export const TRAINING_LEVELS = [
   { id: 'novice', label: 'Novice', blurb: 'Learning the basics. Plain-language tips, no numbers.' },
@@ -80,6 +81,8 @@ export function createTrainingSession({ level = 'amateur', playerColor = 'w', fe
     if (!move || move.color !== playerColor) return;
     const e = explainMove({ move, analysis, level: levelInfo.id, history: history.slice(0, ply) });
     feedback.set(ply, { ...e, san: move.san, fen: move.after, winPercentDrop: analysis.classification.winPercentDrop });
+    // Mistakes become weak-spot cards (only when the analysis is for the move actually played).
+    if (analysis.move === move.uci) bus.emit('coach:graded', { grade: e.grade, before: move.before, san: move.san, analysis });
     if (pendingPly === ply) pendingPly = null;
     const key = e.points.find((p) => p.kind === 'allowed' || p.kind === 'better' || p.kind === 'missed');
     coachSays(`${move.san}: ${e.label}.${key ? ` ${key.text}` : ''}`);

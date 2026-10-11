@@ -190,3 +190,16 @@ test('five stars unlock Rising star', () => {
   ids.push(...r.unlocked.map((a) => a.id));
   assert.ok(ids.includes('stars-5'));
 });
+
+test('weak-spot answers earn XP; ten mastered cards unlock Weak no more', () => {
+  let p = emptyProfile();
+  let ids = [];
+  for (let i = 0; i < 10; i++) {
+    const r = applyEvent(p, { type: 'weakspot', right: true, mastered: true }, { now: NOW });
+    assert.equal(r.xp, XP.weakspot);
+    p = r.profile;
+    ids = ids.concat(r.unlocked.map((a) => a.id));
+  }
+  assert.ok(ids.includes('weak-10'));
+  assert.equal(applyEvent(p, { type: 'weakspot', right: false }, { now: NOW }).xp, 0);
+});

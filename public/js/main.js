@@ -25,6 +25,8 @@ import { renderProfile } from './screens/profile.js';
 import { renderGames, renderReview } from './screens/review.js';
 import { renderPuzzles, renderRush } from './screens/puzzles.js';
 import { renderCampaign } from './screens/campaign.js';
+import { renderWeakSpots } from './screens/weakspots.js';
+import { trackWeakSpots } from './store/weakspots.js';
 import { trackGames } from './store/games.js';
 import { trackProgress } from './store/profile.js';
 import { installCelebrations } from './ui/celebrate.js';
@@ -160,6 +162,7 @@ installCosmetics();
 installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
 trackProgress();
 trackGames();
+trackWeakSpots();
 document.getElementById('btn-settings').addEventListener('click', () => openSettings());
 
 if (location.protocol === 'file:') {
@@ -187,6 +190,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/games$/, title: 'Your games', render: renderGames },
   { pattern: /^\/puzzles$/, title: 'Puzzles', render: renderPuzzles },
   { pattern: /^\/campaign$/, title: 'Campaign', render: renderCampaign },
+  { pattern: /^\/weak-spots$/, title: 'Weak spots', render: renderWeakSpots },
   { pattern: /^\/rush$/, title: 'Puzzle Rush', render: renderRush },
   { pattern: /^\/review\/(?<id>[a-z0-9]{6,24})$/, title: 'Game review', render: (outlet, ctx) => renderReview(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },

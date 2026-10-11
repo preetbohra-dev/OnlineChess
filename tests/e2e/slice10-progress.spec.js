@@ -78,7 +78,7 @@ test('the profile is reachable from the top bar and lists every achievement', as
   await page.goto('/#/');
   await page.getByTestId('nav-profile').click();
   await expect(page.getByTestId('profile')).toBeVisible();
-  await expect(page.locator('[data-testid^="ach-"]')).toHaveCount(21);
+  await expect(page.locator('[data-testid^="ach-"]')).toHaveCount(22);
   await expect(page.getByTestId('bot-records').locator('tbody tr')).toHaveCount(5);
 });
 

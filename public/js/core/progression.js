@@ -39,6 +39,7 @@ export const XP = {
   botLoss: 5,
   minPlies: 16, // a game shorter than 8 moves each earns no XP (no farming by instant resigns)
   puzzle: 5, // a rated puzzle solved at the first try
+  weakspot: 3, // a weak-spot card answered correctly
   rushPerPoint: 2,
   rushMax: 60,
 };
@@ -54,6 +55,7 @@ export function emptyProfile() {
     openings: 0,
     daily: { last: null, streak: 0, best: 0, solved: 0 },
     puzzles: { solved: 0, bestRating: 0, rushBest: 0 },
+    weakspots: { right: 0, mastered: 0 },
     campaign: {}, // personaId -> { win, fast, clean }
     quests: null, // { week, progress: { questId: n }, rewarded } — see core/quests.js
     freezes: 0, // streak freezes held (each covers one missed day of the daily puzzle)
@@ -71,6 +73,7 @@ export function normalizeProfile(raw) {
   for (const k of Object.keys(base.online)) out.online[k] = num(raw.online?.[k]);
   out.training = { games: num(raw.training?.games), bestAccuracy: num(raw.training?.bestAccuracy) };
   out.freezes = Math.min(MAX_FREEZES, num(raw.freezes));
+  out.weakspots = { right: num(raw.weakspots?.right), mastered: num(raw.weakspots?.mastered) };
   const q = raw.quests;
   if (q && typeof q === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(q.week ?? '')) {
     const progress = {};
@@ -119,6 +122,7 @@ export const ACHIEVEMENTS = [
   { id: 'puzzle-2000', icon: '🗡️', title: 'Tactical genius', text: 'Reach a puzzle rating of 2000.', test: (p) => p.puzzles.bestRating >= 2000 },
   { id: 'rush-15', icon: '⚡', title: 'Rush hour', text: 'Score 15 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 15 },
   { id: 'rush-25', icon: '🌩️', title: 'Lightning', text: 'Score 25 in Puzzle Rush.', test: (p) => p.puzzles.rushBest >= 25 },
+  { id: 'weak-10', icon: '🎯', title: 'Weak no more', text: 'Master 10 weak-spot cards.', test: (p) => p.weakspots.mastered >= 10 },
   { id: 'stars-5', icon: '⭐', title: 'Rising star', text: 'Earn 5 campaign stars.', test: (p) => totalStars(p.campaign) >= 5 },
   { id: 'stars-15', icon: '🌠', title: 'Constellation', text: 'Earn all 15 campaign stars.', test: (p) => totalStars(p.campaign) >= 15 },
 ];
@@ -153,6 +157,7 @@ function outcomeFor(status, color) {
 //   { type: 'sync', lessons, openings }
 //   { type: 'puzzle', solved, rating } · { type: 'rush', score }
 //   { type: 'clean', personaId } (a reviewed win without a blunder: the campaign's third star)
+//   { type: 'weakspot', right, mastered } (a weak-spot card answered)
 //   { type: 'review' } (a game reviewed) · { type: 'retry' } (a mistake fixed with Retry) — quests only
 export function applyEvent(input, event, { now = new Date() } = {}) {
   const p = structuredClone(normalizeProfile(input));
@@ -221,6 +226,11 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
   if (event.type === 'puzzle') {
     if (Number.isFinite(event.rating)) p.puzzles.bestRating = Math.max(p.puzzles.bestRating, event.rating);
     if (event.solved) { p.puzzles.solved++; xp = XP.puzzle; }
+  }
+  if (event.type === 'weakspot' && event.right) {
+    p.weakspots.right++;
+    if (event.mastered) p.weakspots.mastered++;
+    xp = XP.weakspot;
   }
   if (event.type === 'rush' && Number.isFinite(event.score) && event.score >= 0) {
     p.puzzles.rushBest = Math.max(p.puzzles.rushBest, event.score);
