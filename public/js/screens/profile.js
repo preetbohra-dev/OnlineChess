@@ -7,6 +7,16 @@ import { PERSONAS } from '../data/personas.js';
 import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
 import { totalStars } from '../core/campaign.js';
+import { questView } from '../core/quests.js';
+
+// This week's quests, with progress bars.
+function questList(profile) {
+  return h('ul', { class: 'quest-list', testid: 'quests' }, questView(profile.quests).map((q) => h('li', { class: `quest${q.done ? ' done' : ''}`, testid: `quest-${q.id}`, dataset: { done: String(q.done) } },
+    h('span', { class: 'quest-text' }, h('span', { 'aria-hidden': 'true' }, q.done ? '✅ ' : '◻️ '), q.text, q.done ? h('span', { class: 'sr-only' }, ' (done)') : null),
+    h('span', { class: 'muted quest-count' }, `${q.progress}/${q.target}`),
+    h('div', { class: 'xp-bar', role: 'progressbar', 'aria-label': q.text, 'aria-valuemin': 0, 'aria-valuemax': q.target, 'aria-valuenow': q.progress, 'aria-valuetext': `${q.progress} of ${q.target}` },
+      h('span', { style: `width: ${Math.round((q.progress / q.target) * 100)}%` })))));
+}
 import { loadPuzzleStats } from '../store/puzzle-stats.js';
 
 function rankBlock(profile) {
@@ -37,6 +47,10 @@ export function dashboard() {
     h('a', { class: 'dash-card dash-rank', href: '#/profile', testid: 'dash-profile' },
       rankBlock(profile),
       h('span', { class: 'muted' }, `🏅 ${unlocked}/${ACHIEVEMENTS.length} achievements · ${g.won}W ${g.drawn}D ${g.lost}L`)),
+    h('section', { class: 'dash-card dash-quests', testid: 'dash-quests', 'aria-label': 'Weekly quests' },
+      h('span', { class: 'dash-eyebrow' }, `Weekly quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
+      questList(profile),
+      h('span', { class: 'muted small' }, 'Finish all three for a streak freeze. New quests every Monday.')),
     h('a', { class: `dash-card dash-daily${solved ? ' done' : ''}`, href: '#/daily', testid: 'dash-daily' },
       h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
       h('strong', {}, solved ? 'Solved today ✓' : 'A new puzzle is waiting'),
@@ -69,6 +83,9 @@ export function renderProfile(outlet) {
     h('section', { class: 'menu-section' }, rankBlock(profile),
       h('p', { class: 'muted' }, `Games: ${g.played} · Won ${g.won} · Drawn ${g.drawn} · Lost ${g.lost} · Checkmates ${g.mates}`),
       h('p', { class: 'muted' }, `Daily puzzle: best streak ${profile.daily.best}, solved ${profile.daily.solved} · Lessons ${profile.lessons} · Openings ${profile.openings} · Coached games ${profile.training.games} (best accuracy ${profile.training.bestAccuracy}%)`)),
+    h('section', { class: 'menu-section' },
+      h('h2', {}, `Weekly quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
+      questList(profile)),
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against the computer'),
       h('table', { class: 'records', testid: 'bot-records' },

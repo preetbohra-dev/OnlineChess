@@ -12,7 +12,7 @@ Play, learn and train chess in the browser — from your first game to grandmast
   - A rules handbook covering every FIDE rule.
   - Rated puzzles: about 5,000 real puzzles from the Lichess database, served near your puzzle rating (Glicko-2), with theme filters; and Puzzle Rush (three minutes, three strikes).
 - **Game review** after every game: accuracy, an evaluation graph, key moments, and "retry" to find a better move where you went wrong.
-- **Progress**: XP and ranks, records against every computer opponent, a campaign with three stars per opponent, 21 achievements, board themes and piece sets unlocked by rank, a daily puzzle with a streak, and a home dashboard that shows what to do next.
+- **Progress**: XP and ranks, records against every computer opponent, a campaign with three stars per opponent, 21 achievements, weekly quests that earn streak freezes, board themes and piece sets unlocked by rank, a daily puzzle with a streak, and a home dashboard that shows what to do next.
 
 All FIDE Laws of Chess are enforced. That includes castling restrictions, en passant and promotion. It also covers threefold, fivefold, fifty and seventy-five move draws, insufficient material, and the timeout rule. See [docs/RULES-IMPL.md](docs/RULES-IMPL.md).
 

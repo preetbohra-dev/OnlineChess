@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createStore, memoryBackend } from '../../public/js/store/storage.js';
-import { listGames, gameById, saveGame, attachReview, trackGames, savedGameId, MAX_GAMES } from '../../public/js/store/games.js';
+import { listGames, gameById, saveGame, attachReview, trackGames, savedGameId, markRetried, MAX_GAMES } from '../../public/js/store/games.js';
 import { bus } from '../../public/js/core/events.js';
 import { createGame, START_FEN } from '../../public/js/core/rules.js';
 
@@ -58,4 +58,13 @@ test('when storage is full, old cached reviews then old games make room for the 
   assert.ok(games.some((g) => !g.review), 'some old reviews were dropped');
   budget = 10; // nothing fits at all
   assert.equal(saveGame(record('newgame2'), store), null);
+});
+
+test('a fixed mistake is remembered, so it counts once', () => {
+  const store = fresh();
+  saveGame(record('retry001'), store);
+  assert.equal(markRetried('retry001', 3, store), true);
+  assert.equal(markRetried('retry001', 3, store), false);
+  assert.equal(markRetried('retry001', 5, store), true);
+  assert.equal(markRetried('missing1', 3, store), false);
 });

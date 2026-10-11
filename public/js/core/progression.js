@@ -1,8 +1,10 @@
 // Player progression, pure: XP and ranks, per-opponent records, campaign stars, achievements and
 // the daily puzzle streak. store/profile.js persists the profile and feeds it app events.
-//   applyEvent(profile, event) -> { profile, xp, unlocked: [achievement], rankUp: rank | null, stars: [{ personaId, id }] }
+//   applyEvent(profile, event) -> { profile, xp, unlocked: [achievement], rankUp: rank | null, stars: [{ personaId, id }],
+//     quests: [completed quest], freezeEarned, freezeUsed }
 
 import { campaignView, starsForWin, awardStars, totalStars, STAR_RULES } from './campaign.js';
+import { advanceQuests, MAX_FREEZES } from './quests.js';
 
 export const RANKS = [
   { id: 'pawn', name: 'Pawn', icon: '♙', min: 0 },
@@ -53,6 +55,8 @@ export function emptyProfile() {
     daily: { last: null, streak: 0, best: 0, solved: 0 },
     puzzles: { solved: 0, bestRating: 0, rushBest: 0 },
     campaign: {}, // personaId -> { win, fast, clean }
+    quests: null, // { week, progress: { questId: n }, rewarded } — see core/quests.js
+    freezes: 0, // streak freezes held (each covers one missed day of the daily puzzle)
     achievements: {}, // id -> ISO date unlocked
   };
 }
@@ -66,6 +70,13 @@ export function normalizeProfile(raw) {
   for (const k of Object.keys(base.games)) out.games[k] = num(raw.games?.[k]);
   for (const k of Object.keys(base.online)) out.online[k] = num(raw.online?.[k]);
   out.training = { games: num(raw.training?.games), bestAccuracy: num(raw.training?.bestAccuracy) };
+  out.freezes = Math.min(MAX_FREEZES, num(raw.freezes));
+  const q = raw.quests;
+  if (q && typeof q === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(q.week ?? '')) {
+    const progress = {};
+    for (const [id, n] of Object.entries(q.progress ?? {})) if (/^[a-z0-9-]{1,30}$/.test(id) && Number.isFinite(n) && n >= 0) progress[id] = n;
+    out.quests = { week: q.week, progress, rewarded: q.rewarded === true };
+  }
   out.puzzles = { solved: num(raw.puzzles?.solved), bestRating: num(raw.puzzles?.bestRating), rushBest: num(raw.puzzles?.rushBest) };
   if (raw.campaign && typeof raw.campaign === 'object') {
     for (const [id, st] of Object.entries(raw.campaign)) {
@@ -121,6 +132,11 @@ export function previousDay(key) {
   const [y, m, d] = key.split('-').map(Number);
   return dayKey(new Date(y, m - 1, d - 1));
 }
+// Whole days from `a` to `b` (YYYY-MM-DD).
+export function daysBetween(a, b) {
+  const n = (k) => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86_400_000; };
+  return Math.round(n(b) - n(a));
+}
 
 // The game's outcome for the player: 'win' | 'draw' | 'loss', or null when it cannot be told
 // (pass-and-play has two players, so no side "wins" for the profile).
@@ -137,11 +153,16 @@ function outcomeFor(status, color) {
 //   { type: 'sync', lessons, openings }
 //   { type: 'puzzle', solved, rating } · { type: 'rush', score }
 //   { type: 'clean', personaId } (a reviewed win without a blunder: the campaign's third star)
+//   { type: 'review' } (a game reviewed) · { type: 'retry' } (a mistake fixed with Retry) — quests only
 export function applyEvent(input, event, { now = new Date() } = {}) {
   const p = structuredClone(normalizeProfile(input));
   const before = rankFor(p.xp);
   let xp = 0;
   const stars = [];
+  let freezeUsed = 0;
+  let dailyFresh = false;
+  // A game shorter than XP.minPlies that did not end in checkmate earns no XP and no quest progress.
+  const short = event.type === 'game' && Number.isFinite(event.plies) && event.plies < XP.minPlies && event.status?.reason !== 'checkmate';
   // Stars only count against an opponent the campaign has opened.
   const earnStars = (personaId, earnedStars) => {
     if (!campaignView(p.campaign).find((v) => v.persona.id === personaId)?.unlocked) return;
@@ -175,7 +196,6 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
       xp = result === 'win' ? win : result === 'draw' ? Math.round(win / 2) : XP.botLoss;
     }
     // Too short to judge: a quick resignation should not count as an accurate game.
-    const short = Number.isFinite(event.plies) && event.plies < XP.minPlies;
     if (event.kind === 'training') {
       p.training.games++;
       const accuracy = Number.isFinite(event.accuracy) && !short ? event.accuracy : 0;
@@ -183,7 +203,7 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
       xp = XP.training.base + Math.round(accuracy / XP.training.accuracyDivisor);
     }
     // A checkmate counts however quick it was; any other short ending earns no XP.
-    if (short && event.status?.reason !== 'checkmate') xp = 0;
+    if (short) xp = 0;
   }
   // `total` is the number completed so far (progress is also kept outside the profile), so
   // completions from before the profile existed, or before a reset, still count.
@@ -211,13 +231,24 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
     // Only a day after the last solve counts (YYYY-MM-DD strings sort by date), so a clock
     // moved backwards cannot re-earn or reset anything.
     if (!p.daily.last || day > p.daily.last) {
-      p.daily.streak = p.daily.last === previousDay(day) ? p.daily.streak + 1 : 1;
+      // Missed days are covered by streak freezes, one each, if enough are held.
+      const missed = p.daily.last ? daysBetween(p.daily.last, day) - 1 : 0;
+      if (missed > 0 && p.daily.streak > 0 && missed <= p.freezes) { p.freezes -= missed; freezeUsed = missed; }
+      const continues = p.daily.last === previousDay(day) || freezeUsed > 0;
+      dailyFresh = true;
+      p.daily.streak = continues ? p.daily.streak + 1 : 1;
       p.daily.best = Math.max(p.daily.best, p.daily.streak);
       p.daily.last = day;
       p.daily.solved++;
       xp = XP.daily + XP.dailyStreakBonus * Math.min(p.daily.streak - 1, 7);
     }
   }
+
+  // Weekly quests. (The week is taken from `now`; a daily solved is always for today.)
+  const q = advanceQuests(p.quests, { ...event, fresh: dailyFresh, short }, now);
+  p.quests = q.quests;
+  xp += q.xp;
+  if (q.freezeEarned) p.freezes = Math.min(MAX_FREEZES, p.freezes + 1);
 
   p.xp += xp;
   const unlocked = [];
@@ -228,11 +259,14 @@ export function applyEvent(input, event, { now = new Date() } = {}) {
     }
   }
   const after = rankFor(p.xp);
-  return { profile: p, xp, unlocked, rankUp: after.id !== before.id ? after : null, stars };
+  return { profile: p, xp, unlocked, rankUp: after.id !== before.id ? after : null, stars, quests: q.completed, freezeEarned: q.freezeEarned, freezeUsed };
 }
 
-// The streak as it stands today: a streak whose last solve was before yesterday has lapsed.
+// The streak as it stands today: it lapses once more days have been missed than the freezes held
+// can cover (a freeze is spent when the next puzzle is solved).
 export function currentStreak(profile, today = dayKey()) {
   const { last, streak } = profile.daily;
-  return last === today || last === previousDay(today) ? streak : 0;
+  if (!last) return 0;
+  const missed = daysBetween(last, today) - 1;
+  return missed <= 0 || missed <= (profile.freezes ?? 0) ? streak : 0;
 }
