@@ -4,7 +4,7 @@ OnlineChess runs on this Mac behind the existing Cloudflare tunnel (`jodhpur-stu
 
 | Piece | Where |
 |---|---|
-| Live checkout | `~/.jodhpur-studio/apps/onlinechess`. A **detached git worktree** of `feat/mvp`, so only committed code is live and the working copy is never served. |
+| Live checkout | `~/.jodhpur-studio/apps/onlinechess`. A **detached git worktree** of `main`, so only merged code is live and the working copy is never served. |
 | Process | launchd agent `in.jodhpurstudio.chess` (`~/Library/LaunchAgents/in.jodhpurstudio.chess.plist`). Runs `node server/index.js` with `PORT=3200` and `HOST=127.0.0.1`. KeepAlive is on. |
 | Logs | `~/Library/Logs/chess/chess.log` |
 | Tunnel rule | `~/.cloudflared/config.yml`: `chess.solankidigitaldrafts.com → http://localhost:3200` |
@@ -13,9 +13,9 @@ OnlineChess runs on this Mac behind the existing Cloudflare tunnel (`jodhpur-stu
 ## Ship a new version
 
 ```sh
-git push                                                    # from the repo, after Gate 2
+# after the change is merged to main on GitHub
 git -C ~/.jodhpur-studio/apps/onlinechess fetch origin
-git -C ~/.jodhpur-studio/apps/onlinechess checkout --detach origin/feat/mvp
+git -C ~/.jodhpur-studio/apps/onlinechess checkout --detach origin/main
 launchctl kickstart -k gui/$(id -u)/in.jodhpurstudio.chess
 curl -s https://chess.solankidigitaldrafts.com/ | grep -o '<title>.*</title>'
 ```
