@@ -188,9 +188,19 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - **Bot repertoires:** Pip (Novice) tries early queen attacks; Rex (Amateur) plays gambits and traps (Fried Liver, Evans, Stafford, Danish, King's Gambit); the stronger bots play the main lines of the trainer openings.
 - Every taught move is engine-checked (no worse than Stockfish's best by more than 0.9 pawns).
 
+### Slice 10: progress and retention
+
+- **Profile** (`#/profile`, top-bar `nav-profile`): rank (`rank-name`, 8 ranks from Pawn to Legend), XP (`xp`) and a progress bar, overall stats, a record table per computer opponent (`record-<persona>`: W/D/L and best streak), the online record, 14 achievements (`ach-<id>`, `data-unlocked`), and a reset button (`btn-reset-profile`, confirmed).
+- **XP:** wins against the computer by level (20/40/70/120/200; draws half, losses 5), online games 30/15/10, coached games 15 plus accuracy/5, lessons 25, openings 20, the daily puzzle 30 plus 5 per streak day (up to a week), pass and play 5.
+- **Integrity:** only games from the standard start position count toward records and achievements; a game from a set-up position (a `fen=` link, an opening played out) is practice and earns 5 XP.
+- **Daily puzzle** (`#/daily`): the same puzzle all day for everyone, rotating through the lesson puzzles. Solving it starts or extends the streak (`daily-streak`); a missed day resets it.
+- **Home dashboard** (`dashboard`): rank and XP (`dash-profile`), today's puzzle and the streak (`dash-daily`, `dash-streak`), and the next unfinished lesson (`dash-continue`).
+- **Celebrations:** "+N XP" toasts, achievement and rank-up toasts, and confetti for wins, unlocks, rank-ups and the daily puzzle (skipped with reduced motion; `__oc.confetti` counts bursts).
+- **Accessibility:** progress bar with ARIA values, locked/unlocked state in text, records as a table with headers; no horizontal scroll at 360px.
+
 ## Not built yet (score N/A)
 
-- Slice 10: retention (profile, ranks, records, achievements, daily puzzle, home dashboard).
+- Nothing: all ten slices are built.
 
 ## How to run for evaluation
 
