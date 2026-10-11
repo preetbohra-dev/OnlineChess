@@ -20,7 +20,10 @@ import { createRng } from './core/rng.js';
 import { createAnalyzer } from './engine/analysis.js';
 import { renderOnlineNew, renderRoom } from './screens/online.js';
 import { renderCoachSetup } from './screens/coach-setup.js';
-import { renderLearnHub, renderLesson } from './screens/learn.js';
+import { renderLearnHub, renderLesson, renderDaily } from './screens/learn.js';
+import { renderProfile } from './screens/profile.js';
+import { trackProgress } from './store/profile.js';
+import { installCelebrations } from './ui/celebrate.js';
 import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
@@ -148,6 +151,8 @@ function renderBotGame(outlet, { query }) {
 applyTheme(settings.get().theme);
 settings.on('change', (s) => applyTheme(s.theme));
 installSoundUnlock();
+installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
+trackProgress();
 document.getElementById('btn-settings').addEventListener('click', () => openSettings());
 
 if (location.protocol === 'file:') {
@@ -170,6 +175,8 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/learn\/(?<id>[a-z0-9-]{1,60})$/, title: 'Lesson', render: (outlet, ctx) => renderLesson(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/rules$/, title: 'Rules of chess', render: renderRules },
   { pattern: /^\/openings$/, title: 'Openings', render: renderOpeningsHub },
+  { pattern: /^\/daily$/, title: 'Daily puzzle', render: renderDaily },
+  { pattern: /^\/profile$/, title: 'Profile', render: renderProfile },
   { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },
   { pattern: /^\/train\/coach\/play$/, title: 'Coached game', render: renderCoachGame },
   { pattern: /^$/, notFound: true, title: 'Not found', render: renderNotFound },

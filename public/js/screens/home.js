@@ -1,6 +1,7 @@
 // Home and mode menus: Normal Mode (Against Person / Against Computer) and Training Mode.
 import { h } from '../ui/dom.js';
 import { PERSONAS } from '../data/personas.js';
+import { dashboard } from './profile.js';
 
 function optionCard({ testid, href, icon, title, eyebrow, text, soon = false }) {
   const content = [
@@ -33,6 +34,7 @@ export function renderHome(outlet) {
         h('h2', {}, 'Training Mode'),
         h('p', {}, 'Learn the rules, tactics, openings and endgames, and get feedback on every move you make.'),
         h('span', { class: 'mode-cta' }, 'Start learning →'))),
+    dashboard(),
     h('footer', { class: 'credits muted' },
       'Computer opponents are powered by ', h('a', { href: 'https://stockfishchess.org', rel: 'noopener', target: '_blank' }, 'Stockfish'),
       ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '.')));

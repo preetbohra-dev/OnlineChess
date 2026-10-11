@@ -7,6 +7,10 @@ import { LESSON_TRACKS, ALL_LESSONS, lessonById } from '../data/lessons/index.js
 import { completedLessons, markLessonComplete } from '../store/progress.js';
 import { createPuzzle } from '../core/puzzle.js';
 import { createPlayout } from '../core/playout.js';
+import { dailyPuzzle } from '../core/daily.js';
+import { dayKey, currentStreak } from '../core/progression.js';
+import { loadProfile } from '../store/profile.js';
+import { bus } from '../core/events.js';
 import { createGame } from '../core/rules.js';
 import { ANALYSIS_OPTIONS } from '../engine/analysis.js';
 import { playSound, soundForMove } from '../ui/sound.js';
@@ -33,6 +37,38 @@ export function renderLearnHub(outlet) {
 }
 
 const KIND_LABEL = { read: 'Lesson', puzzle: 'Puzzle', playout: 'vs Stockfish' };
+
+// The daily puzzle: one puzzle per calendar day; solving it keeps your streak alive.
+export function renderDaily(outlet) {
+  const day = dayKey();
+  const lesson = dailyPuzzle(day);
+  const solvedToday = () => loadProfile().daily.last === day;
+  const boardHost = h('div', { class: 'board-host lesson-board' });
+  const panel = h('div', { class: 'lesson-panel' });
+  const streakNote = h('p', { class: 'muted daily-streak', testid: 'daily-streak' });
+  const showStreak = () => {
+    const streak = currentStreak(loadProfile(), day);
+    streakNote.textContent = solvedToday()
+      ? `Solved today · 🔥 ${streak}-day streak. Come back tomorrow for a new puzzle.`
+      : streak ? `🔥 ${streak}-day streak — solve today's puzzle to keep it going.` : 'Solve one puzzle a day to build a streak.';
+  };
+  outlet.append(h('div', { class: 'game lesson', testid: 'daily', dataset: { lesson: lesson.id } },
+    h('div', { class: 'game-board-col' }, boardHost),
+    h('aside', { class: 'game-side' },
+      h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ` / Daily puzzle · ${day}`),
+      h('h1', { class: 'game-title' }, `Daily puzzle: ${lesson.title}`),
+      streakNote,
+      panel)));
+  showStreak();
+  const homeLink = () => h('a', { class: 'btn btn-primary', href: '#/', testid: 'btn-next-lesson' }, 'Back home');
+  return playPuzzle(lesson, boardHost, panel, homeLink, {
+    onSolved: () => {
+      markLessonComplete(lesson.id);
+      bus.emit('daily:solved', { day: dayKey() }); // the day it was solved, even past midnight
+      showStreak();
+    },
+  });
+}
 
 function nextLessonId(id) {
   const i = ALL_LESSONS.findIndex((l) => l.id === id);
@@ -89,7 +125,7 @@ function playRead(lesson, boardHost, panel, nextLink) {
 
 // Hints escalate: each press shows the next text hint (and highlights the piece to move); after
 // the last text hint, one more press shows the move itself as an arrow.
-function playPuzzle(lesson, boardHost, panel, nextLink) {
+function playPuzzle(lesson, boardHost, panel, nextLink, { onSolved = () => markLessonComplete(lesson.id) } = {}) {
   const puzzle = createPuzzle(lesson);
   const playerColor = puzzle.game.turn();
   const live = liveRegion();
@@ -120,7 +156,7 @@ function playPuzzle(lesson, boardHost, panel, nextLink) {
     }
     hintsShown = 0;
     if (outcome.result === 'solved') {
-      markLessonComplete(lesson.id);
+      onSolved();
       playSound('end');
       message = { kind: 'success', text: outcome.message };
       return render();

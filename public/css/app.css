@@ -405,3 +405,34 @@ html { scroll-padding-top: 72px; }
 .opening-badge { margin: 0; font-size: .85rem; color: var(--muted); }
 .opening-badge a { color: inherit; }
 .playout-moves { margin: 0; font-size: .9rem; }
+
+/* Progress: dashboard, rank, profile, achievements, confetti */
+.dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin-top: 20px; }
+.dash-card { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); color: var(--text); text-decoration: none; transition: border-color .15s, transform .15s; }
+.dash-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.dash-daily.done { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.dash-eyebrow { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.rank-block { display: flex; align-items: center; gap: 12px; }
+.rank-icon { font-size: 2.2rem; line-height: 1; }
+.rank-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.xp-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.xp-bar > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.records { width: 100%; border-collapse: collapse; }
+.records th, .records td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+.achievements { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.achievement { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); opacity: .6; }
+.achievement.unlocked { opacity: 1; border-color: color-mix(in srgb, var(--gold) 60%, var(--border)); }
+.achievement > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.ach-icon { font-size: 1.5rem; line-height: 1; }
+.daily-streak { margin: 0; }
+.toast-xp { border-color: var(--accent); font-weight: 600; }
+.toast-achievement { border-color: var(--gold); font-weight: 600; }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 300; }
+.toasts { pointer-events: none; }
+@media (max-width: 440px) {
+  .topbar { padding-left: 12px; padding-right: 12px; gap: 6px; }
+  .brand { font-size: 1rem; gap: 4px; }
+  .brand-mark { font-size: 1.25rem; }
+  .topnav { gap: 0; }
+  .topnav a { padding: 6px 7px; }
+}
