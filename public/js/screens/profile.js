@@ -59,9 +59,10 @@ function accountSection() {
   let mode = 'login';
   let error = '';
   let busy = false;
+  let typedName = ''; // kept when the form is drawn again after an error
 
   function form() {
-    const username = h('input', { class: 'text-input', type: 'text', testid: 'account-username', autocomplete: 'username', maxlength: 20, required: true, 'aria-label': 'Username' });
+    const username = h('input', { class: 'text-input', type: 'text', testid: 'account-username', autocomplete: 'username', maxlength: 20, required: true, 'aria-label': 'Username', value: typedName });
     const password = h('input', { class: 'text-input', type: 'password', testid: 'account-password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', minlength: 10, maxlength: 200, required: true, 'aria-label': 'Password' });
     return h('form', {
       class: 'account-form',
@@ -70,11 +71,13 @@ function accountSection() {
         if (busy) return;
         busy = true;
         error = '';
+        typedName = username.value.trim();
         render();
-        const r = await (mode === 'login' ? login : register)(username.value.trim(), password.value);
+        const r = await (mode === 'login' ? login : register)(typedName, password.value);
         busy = false;
         error = r.ok ? '' : r.error;
         render();
+        if (!r.ok) section.querySelector('[data-testid="account-password"]')?.focus();
       },
     },
     h('label', { class: 'field' }, h('span', {}, mode === 'login' ? 'Username' : 'Username (shown on the weekly leaderboard)'), username),

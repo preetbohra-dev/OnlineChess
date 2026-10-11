@@ -52,3 +52,9 @@ test('a challenge game opens against the right opponent; a resignation does not 
   await page.getByTestId('btn-confirm').click();
   await expect(page.getByTestId('toast').filter({ hasText: 'only games that end on the board' })).toBeVisible();
 });
+
+test('without a connection the page says so instead of hanging', async ({ page }) => {
+  await page.route('**/api/**', (route) => route.abort());
+  await page.goto('/#/weekly');
+  await expect(page.getByTestId('weekly-unavailable')).toContainText('offline');
+});

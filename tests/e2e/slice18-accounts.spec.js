@@ -46,6 +46,7 @@ test('wrong passwords and taken usernames are explained; sign out keeps this dev
   await page.getByTestId('account-password').fill('not my password');
   await page.getByTestId('btn-account-submit').click();
   await expect(page.getByTestId('account-error')).toHaveText('Wrong username or password.');
+  await expect(page.getByTestId('account-username')).toHaveValue(name, { timeout: 2000 });
   await page.getByTestId('btn-account-mode').click();
   await page.getByTestId('account-username').fill(name);
   await page.getByTestId('account-password').fill(PW);

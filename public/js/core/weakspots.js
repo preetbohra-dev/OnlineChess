@@ -18,10 +18,11 @@ const addDays = (day, n) => {
 // The answers for a mistake: the best move, plus the second-best when it is not itself a mistake.
 export function answersFor(analysis) {
   const out = [analysis.bestMove];
+  const add = (m) => { if (m && !out.includes(m)) out.push(m); };
   const second = analysis.secondLine?.pv?.[0];
   if (second && second !== analysis.move) {
     const { grade } = classifyMove({ bestCp: analysis.bestCp, playedCp: scoreToCp(analysis.secondLine.score) });
-    if (!BAD.has(grade) && grade !== 'inaccuracy') out.push(second);
+    if (!BAD.has(grade) && grade !== 'inaccuracy') add(second);
   }
   return out;
 }
@@ -46,8 +47,12 @@ export function addCards(deck, cards) {
   let added = 0;
   for (const c of cards) {
     const old = byId.get(c.id);
+    // The engine can prefer different, equally good moves from one search to the next: a card
+    // for the same position accepts the better moves found each time.
+    const answers = old ? [...new Set([...old.answers, ...c.answers])].slice(0, 4) : c.answers;
     if (!old) { byId.set(c.id, c); added++; }
-    else if (old.mastered) { byId.set(c.id, { ...old, mastered: false, step: 0, due: c.due, played: c.played }); added++; }
+    else if (old.mastered) { byId.set(c.id, { ...old, answers, mastered: false, step: 0, due: c.due, played: c.played }); added++; }
+    else if (answers.length !== old.answers.length) byId.set(c.id, { ...old, answers });
   }
   let next = [...byId.values()];
   while (next.length > MAX_CARDS) {

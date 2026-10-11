@@ -84,3 +84,12 @@ test('one card per position; a mastered card returns when the mistake is made ag
   assert.ok(!deck.some((c) => c.id === 'c5'), 'the mastered card made room');
   assert.ok(deck.some((c) => c.id === 'c0'));
 });
+
+test('answers are never duplicated, and a card gathers the good moves found each time', () => {
+  assert.deepEqual(answersFor({ move: 'g2g4', bestMove: 'e2e4', bestCp: 30, secondLine: { score: { cp: 30 }, pv: ['e2e4'] } }), ['e2e4']);
+  const first = makeCard({ fen: FEN, played: 'g4', answers: ['e2e3'], grade: 'blunder', source: 'review', day: '2026-10-11' });
+  const again = makeCard({ fen: FEN, played: 'g4', answers: ['e2e4'], grade: 'blunder', source: 'review', day: '2026-10-12' });
+  const { deck } = addCards(addCards([], [first]).deck, [again]);
+  assert.deepEqual(deck[0].answers, ['e2e3', 'e2e4']);
+  assert.equal(deck[0].due, first.due, 'the schedule is unchanged');
+});

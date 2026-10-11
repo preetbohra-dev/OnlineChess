@@ -79,7 +79,7 @@ function mountDaily(outlet, lesson, day) {
   outlet.append(h('div', { class: 'game lesson', testid: 'daily', dataset: { lesson: lesson.id, source: library ? 'library' : 'lessons' } },
     h('div', { class: 'game-board-col' }, boardHost),
     h('aside', { class: 'game-side' },
-      h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ` / Daily puzzle · ${day}`),
+      h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ` / Daily puzzle · ${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`),
       h('h1', { class: 'game-title' }, library ? `Daily puzzle · rated ${lesson.rating}` : `Daily puzzle: ${lesson.title}`),
       streakNote,
       panel)));

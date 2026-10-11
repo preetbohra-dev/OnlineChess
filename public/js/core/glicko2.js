@@ -6,7 +6,8 @@
 const SCALE = 173.7178;
 const EPSILON = 0.000001;
 
-export const DEFAULT_RATING = Object.freeze({ rating: 1000, rd: 350, vol: 0.06 });
+// A new player starts with a moderate deviation, so one missed puzzle does not drop 200 points.
+export const DEFAULT_RATING = Object.freeze({ rating: 1000, rd: 200, vol: 0.06 });
 export const MIN_RD = 45; // keep ratings responsive: a puzzle rating should keep moving
 export const MAX_RD = 350;
 

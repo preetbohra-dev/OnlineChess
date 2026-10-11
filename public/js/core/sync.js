@@ -41,7 +41,7 @@ const cleanGame = (g) => ({
 });
 const num = (v) => (Number.isFinite(v) ? v : 0);
 const cleanCard = (c) => ({
-  id: c.id, fen: c.fen, played: str(c.played, 12) ?? '', answers: c.answers.slice(0, 3), grade: c.grade === 'mistake' ? 'mistake' : 'blunder',
+  id: c.id, fen: c.fen, played: str(c.played, 12) ?? '', answers: [...new Set(c.answers)].slice(0, 4), grade: c.grade === 'mistake' ? 'mistake' : 'blunder',
   source: str(c.source, 40) ?? '', created: str(c.created, 10) ?? '', due: c.mastered ? null : c.due, step: num(c.step), reps: num(c.reps), lapses: num(c.lapses),
   ...(c.mastered ? { mastered: true } : {}),
 });
