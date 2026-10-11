@@ -33,6 +33,7 @@ import { trackProgress } from './store/profile.js';
 import { installCelebrations } from './ui/celebrate.js';
 import { installCosmetics } from './ui/cosmetics.js';
 import { installPwa } from './ui/pwa.js';
+import { trackSync } from './store/account.js';
 import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
@@ -166,6 +167,7 @@ installCelebrations(); // before trackProgress, whose start-up sync may unlock a
 trackProgress();
 trackGames();
 trackWeakSpots();
+trackSync();
 document.getElementById('btn-settings').addEventListener('click', () => openSettings());
 
 if (location.protocol === 'file:') {

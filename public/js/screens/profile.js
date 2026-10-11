@@ -10,6 +10,60 @@ import { totalStars } from '../core/campaign.js';
 import { questView } from '../core/quests.js';
 import { dueToday } from '../store/weakspots.js';
 import { canInstall, install } from '../ui/pwa.js';
+import { currentUser, lastSynced, login, register, logout, syncNow } from '../store/account.js';
+import { bus } from '../core/events.js';
+import { fill } from '../ui/dom.js';
+
+// Sign in / create an account, or (signed in) who you are and when progress last synced.
+function accountSection() {
+  const section = h('section', { class: 'menu-section account', testid: 'account', 'aria-labelledby': 'account-heading' });
+  let mode = 'login';
+  let error = '';
+  let busy = false;
+
+  function form() {
+    const username = h('input', { class: 'text-input', type: 'text', testid: 'account-username', autocomplete: 'username', maxlength: 20, required: true, 'aria-label': 'Username' });
+    const password = h('input', { class: 'text-input', type: 'password', testid: 'account-password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', minlength: 10, maxlength: 200, required: true, 'aria-label': 'Password' });
+    return h('form', {
+      class: 'account-form',
+      onSubmit: async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        busy = true;
+        error = '';
+        render();
+        const r = await (mode === 'login' ? login : register)(username.value.trim(), password.value);
+        busy = false;
+        error = r.ok ? '' : r.error;
+        render();
+      },
+    },
+    h('label', { class: 'field' }, h('span', {}, 'Username'), username),
+    h('label', { class: 'field' }, h('span', {}, mode === 'login' ? 'Password' : 'Password (at least 10 characters)'), password),
+    error ? h('p', { class: 'form-error', role: 'alert', testid: 'account-error' }, error) : null,
+    h('div', { class: 'lesson-actions' },
+      h('button', { class: 'btn btn-primary', type: 'submit', testid: 'btn-account-submit', disabled: busy }, busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'),
+      h('button', { class: 'btn', type: 'button', testid: 'btn-account-mode', onClick: () => { mode = mode === 'login' ? 'register' : 'login'; error = ''; render(); } },
+        mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in')));
+  }
+
+  function render() {
+    const user = currentUser();
+    const synced = lastSynced();
+    fill(section,
+      h('h2', { id: 'account-heading' }, 'Account'),
+      user
+        ? [h('p', { testid: 'account-user' }, 'Signed in as ', h('strong', {}, user.username), '. Your progress syncs to every device you sign in on.'),
+          h('p', { class: 'muted small', testid: 'account-synced' }, synced ? `Last synced ${synced.toLocaleTimeString()}.` : 'Syncing…'),
+          h('div', { class: 'lesson-actions' },
+            h('button', { class: 'btn', type: 'button', testid: 'btn-sync', onClick: () => syncNow() }, 'Sync now'),
+            h('button', { class: 'btn', type: 'button', testid: 'btn-logout', onClick: () => logout() }, 'Sign out'))]
+        : [h('p', { class: 'muted' }, 'Playing as a guest: progress is saved on this device. Sign in to keep it safe and use it on other devices — this device\'s progress is added to the account.'),
+          form()]);
+  }
+  render();
+  return { el: section, destroy: () => {} };
+}
 
 // This week's quests, with progress bars.
 function questList(profile) {
@@ -85,12 +139,31 @@ export function dashboard() {
 }
 
 export function renderProfile(outlet) {
+  let cleanup = () => {};
+  // Redraw everything after a reset, a sign-in or sign-out, or a sync (the numbers change);
+  // keyboard focus returns to the same control, or to the page title.
+  const redraw = () => {
+    const focused = document.activeElement?.dataset?.testid;
+    cleanup();
+    outlet.replaceChildren();
+    cleanup = draw(outlet, redraw);
+    (outlet.querySelector(`[data-testid="${focused}"]`) ?? outlet.querySelector('[data-testid="profile-title"]'))?.focus();
+  };
+  cleanup = draw(outlet, redraw);
+  const offs = [bus.on('account:change', redraw), bus.on('account:synced', redraw)];
+  return () => { offs.forEach((off) => off()); cleanup(); };
+}
+
+// Draws the page; `redraw` draws it again after a profile reset. Returns a cleanup function.
+function draw(outlet, redraw) {
   const profile = loadProfile();
+  const account = accountSection();
   const g = profile.games;
   const record = (r) => (r ? `${r.w}W ${r.d}D ${r.l}L` : '—');
   const page = h('div', { class: 'page menu profile', testid: 'profile' },
     h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Profile'),
     h('h1', { tabindex: -1, testid: 'profile-title' }, 'Your profile'),
+    account.el,
     h('section', { class: 'menu-section' }, rankBlock(profile),
       h('p', { class: 'muted' }, `Games: ${g.played} · Won ${g.won} · Drawn ${g.drawn} · Lost ${g.lost} · Checkmates ${g.mates}`),
       h('p', { class: 'muted' }, `Daily puzzle: best streak ${profile.daily.best}, solved ${profile.daily.solved} · Lessons ${profile.lessons} · Openings ${profile.openings} · Coached games ${profile.training.games} (best accuracy ${profile.training.bestAccuracy}%)`)),
@@ -116,16 +189,17 @@ export function renderProfile(outlet) {
             at ? h('span', { class: 'sr-only' }, ' (unlocked)') : h('span', { class: 'sr-only' }, ' (locked)')));
       }))),
     h('section', { class: 'menu-section' },
-      h('button', {
-        class: 'btn', type: 'button', testid: 'btn-reset-profile',
-        onClick: async () => {
-          if (await confirmDialog({ title: 'Reset your profile?', message: 'This clears your XP, rank, records, achievements and streak on this device. Lesson and opening progress is kept.', confirmLabel: 'Reset', danger: true })) {
-            resetProfile();
-            outlet.replaceChildren();
-            renderProfile(outlet);
-            outlet.querySelector('[data-testid="profile-title"]')?.focus();
-          }
-        },
-      }, 'Reset profile')));
+      currentUser()
+        ? h('p', { class: 'muted small', testid: 'reset-signed-in' }, 'Signed in: your profile is kept in your account and synced, so it cannot be reset from here. Sign out to reset this device.')
+        : h('button', {
+          class: 'btn', type: 'button', testid: 'btn-reset-profile',
+          onClick: async () => {
+            if (await confirmDialog({ title: 'Reset your profile?', message: 'This clears your XP, rank, records, achievements and streak on this device. Lesson and opening progress is kept.', confirmLabel: 'Reset', danger: true })) {
+              resetProfile();
+              redraw();
+            }
+          },
+        }, 'Reset profile')));
   outlet.append(page);
+  return account.destroy;
 }

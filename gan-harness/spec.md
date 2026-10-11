@@ -283,9 +283,29 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - An install banner (`install-banner`) is offered at most once a week, after a win or a solved daily, where the browser supports installing.
 - Test note: Playwright blocks service workers except in `tests/e2e/slice17-offline.spec.js`.
 
+### Slice 18: accounts and cloud sync
+
+- **Accounts** (optional; guests keep playing as before). They live in the Account section of `#/profile` (`account`).
+  - Sign in or create an account: `account-username`, `account-password`, `btn-account-submit`, `btn-account-mode`.
+  - Errors show in `account-error`. When signed in: `account-user`, `account-synced`, `btn-sync`, `btn-logout`.
+  - Usernames: 3–20 letters, digits, `-` or `_`, unique ignoring case. Passwords: at least 10 characters, not a common password, not containing the username.
+- **Server** (`server/db.js`, `server/auth.js`, `server/api.js`):
+  - SQLite through `node:sqlite`, at `DB_PATH` (default `~/.jodhpur-studio/data/chess.db`; `:memory:` for tests; `off` disables accounts). A daily `VACUUM INTO` backup keeps seven.
+  - Passwords are scrypt-hashed. The session is a random 256-bit token in an HttpOnly, SameSite=Lax, Secure cookie (not Secure on localhost), stored only as a hash. Sessions last 30 days, at most 10 per user.
+  - API: `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/me`, `GET/PUT /api/state`.
+    - Writes need a same-origin `Origin` and the `X-OC-Request: 1` header.
+    - Bodies must be JSON (2 KB for sign-in, 512 KB for state).
+    - Sign-in is rate-limited per address. Five wrong passwords lock the account for a minute, doubling up to an hour.
+    - Unknown users and wrong passwords get the same answer and take the same time.
+- **Sync** (`public/js/core/sync.js`, shared by browser and server) covers the profile, puzzle stats, saved games, weak spots, lessons and openings.
+  - Merge rules: counters take the larger value, sets are united, achievements keep the earliest date, the daily streak follows the latest solve, puzzle rating follows the device with more rated puzzles, and reviewed games and more-practised cards win.
+  - Signing in adds this device's progress to the account; changes sync a few seconds later. Signed-in profiles cannot be reset (`reset-signed-in`).
+- Online play pre-fills the account name.
+- Admin: `node scripts/admin.mjs reset-password <user>` / `delete-user <user>`.
+
 ## Not built yet (score N/A)
 
-- Plan 2 slices 18–20 (docs/PLAN-2.md).
+- Plan 2 slices 19–20 (docs/PLAN-2.md).
 
 ## How to run for evaluation
 

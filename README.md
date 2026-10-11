@@ -20,7 +20,7 @@ All FIDE Laws of Chess are enforced. That includes castling restrictions, en pas
 
 It installs as an app (home screen or desktop) and works offline, except online play. The offline copy is versioned from the files the server sees at start-up, so restart the server after deploying new files.
 
-Every game shows the opening being played. Progress is stored in the browser (localStorage); there are no accounts, so XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
+Every game shows the opening being played. Progress is stored in the browser; an optional account (username and password) keeps it safe and syncs it across devices. XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
 
 ## Run
 
@@ -39,10 +39,11 @@ Environment variables:
 |----------|---------|---------|
 | `PORT` | `3200` | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` allows other devices on your network |
+| `DB_PATH` | `~/.jodhpur-studio/data/chess.db` | Accounts database (SQLite). `off` disables accounts; `:memory:` keeps them in memory (tests). A daily backup goes to `backups/` beside it. |
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
 
-Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md).
+Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.
 
 ## Test
 

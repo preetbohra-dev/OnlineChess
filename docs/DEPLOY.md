@@ -7,6 +7,7 @@ OnlineChess runs on this Mac behind the existing Cloudflare tunnel (`jodhpur-stu
 | Live checkout | `~/.jodhpur-studio/apps/onlinechess`. A **detached git worktree** of `feat/mvp`, so only committed code is live and the working copy is never served. |
 | Process | launchd agent `in.jodhpurstudio.chess` (`~/Library/LaunchAgents/in.jodhpurstudio.chess.plist`). Runs `node server/index.js` with `PORT=3200` and `HOST=127.0.0.1`. KeepAlive is on. |
 | Logs | `~/Library/Logs/chess/chess.log` |
+| Accounts database | `~/.jodhpur-studio/data/chess.db` (SQLite, mode 600). Daily snapshots in `~/.jodhpur-studio/data/backups/` (seven kept). Not in the repository. |
 | Tunnel rule | `~/.cloudflared/config.yml`: `chess.solankidigitaldrafts.com → http://localhost:3200` |
 | DNS | CNAME `chess.solankidigitaldrafts.com` → tunnel (created with `cloudflared tunnel route dns`) |
 
@@ -21,6 +22,12 @@ curl -s https://chess.solankidigitaldrafts.com/ | grep -o '<title>.*</title>'
 ```
 
 From Slice 5 onward the server needs the `ws` package. Run `npm ci --omit=dev --ignore-scripts` in the live checkout before restarting. The vendored browser files are committed, so no build step is needed.
+
+## Accounts
+
+- Accounts and synced progress live in the SQLite file above. The server creates it, and its tables, on first start (`node:sqlite`, built into Node 22.5+; this Mac runs Node 26).
+- To restore a backup: stop the agent, copy a `backups/chess-YYYY-MM-DD.db` over `chess.db` (and remove `chess.db-wal`/`-shm`), then start the agent.
+- To reset a password or delete an account: `DB_PATH=~/.jodhpur-studio/data/chess.db node scripts/admin.mjs reset-password <user>` (or `delete-user <user>`), from the live checkout.
 
 ## Ports
 
