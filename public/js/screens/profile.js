@@ -9,6 +9,7 @@ import { completedLessons } from '../store/progress.js';
 import { totalStars } from '../core/campaign.js';
 import { questView } from '../core/quests.js';
 import { dueToday } from '../store/weakspots.js';
+import { canInstall, install } from '../ui/pwa.js';
 
 // This week's quests, with progress bars.
 function questList(profile) {
@@ -49,6 +50,10 @@ export function dashboard() {
     h('a', { class: 'dash-card dash-rank', href: '#/profile', testid: 'dash-profile' },
       rankBlock(profile),
       h('span', { class: 'muted' }, `🏅 ${unlocked}/${ACHIEVEMENTS.length} achievements · ${g.won}W ${g.drawn}D ${g.lost}L`)),
+    canInstall() ? h('button', { class: 'dash-card dash-install', type: 'button', testid: 'dash-install', onClick: () => install() },
+      h('span', { class: 'dash-eyebrow' }, 'Install the app'),
+      h('strong', {}, '📲 Add OnlineChess to your device'),
+      h('span', { class: 'muted' }, 'One tap to open, and it works offline')) : null,
     h('section', { class: 'dash-card dash-quests', testid: 'dash-quests', 'aria-label': 'Weekly quests' },
       h('span', { class: 'dash-eyebrow' }, `Weekly quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
       questList(profile),

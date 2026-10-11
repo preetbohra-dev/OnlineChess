@@ -128,6 +128,7 @@ export function createAppServer({
   return {
     http: server,
     rooms: manager,
+    serviceWorker: serveStatic.serviceWorker,
     close() {
       clearInterval(heartbeat);
       clearInterval(gc);
@@ -157,6 +158,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   app.http.listen(port, host, () => {
     const { port: actual } = app.http.address();
     console.log(`OnlineChess running at http://${host === '0.0.0.0' ? 'localhost' : host}:${actual}`);
+    console.log(`Offline app version ${app.serviceWorker.version} (${app.serviceWorker.files} files). Restart after deploying new files.`);
   });
   const shutdown = () => app.close().then(() => process.exit(0));
   process.on('SIGINT', shutdown);
