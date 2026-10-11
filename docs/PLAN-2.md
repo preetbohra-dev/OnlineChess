@@ -129,6 +129,7 @@ Client-only slices first (they work for guests), then the server slices.
 - A web app manifest and icons.
 - A service worker caches the app shell, the vendored files and Stockfish (about 2 MB), so
   computer games, lessons, openings and puzzles work offline. Online play needs a connection.
+- Precache both piece sprites and the marker and arrow sprites (`public/vendor/cm-chessboard/assets/`): since Slice 13 boards reference the sprite files directly (`assetsCache: false`), so a missing file means a blank board offline.
 - An install prompt is offered at a good moment, such as after a win or a solved daily.
 - An update banner appears when a new version is deployed.
 - Tests:

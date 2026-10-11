@@ -105,3 +105,15 @@ test('newer players get Novice and Amateur daily puzzles', () => {
     assert.ok(['novice', 'amateur'].includes(l.level), l.id);
   }
 });
+
+test('a reviewed blunder-free win against the computer earns the clean star', async () => {
+  const { saveGame, attachReview } = await import('../../public/js/store/games.js');
+  const store = fresh();
+  const off = trackProgress({ store });
+  bus.emit('game:end', { kind: 'bot', status: won, session: { kind: 'bot', playerColor: 'w', persona: { id: 'novice' }, rules: { history: () => Array(30).fill({ before: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' }) } } });
+  saveGame({ id: 'clean001', date: '2026-10-11T00:00:00Z', kind: 'bot', white: 'You', black: 'Pip', playerColor: 'w', personaId: 'novice', result: '1-0', reason: 'checkmate', startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', moves: ['e2e4'] }, store);
+  attachReview('clean001', { counts: { w: { blunder: 0 }, b: { blunder: 2 } } }, store);
+  bus.emit('game:reviewed', { id: 'clean001' });
+  off();
+  assert.deepEqual(loadProfile(store).campaign.novice, { win: true, fast: true, clean: true });
+});

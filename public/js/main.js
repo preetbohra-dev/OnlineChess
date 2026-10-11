@@ -24,9 +24,11 @@ import { renderLearnHub, renderLesson, renderDaily } from './screens/learn.js';
 import { renderProfile } from './screens/profile.js';
 import { renderGames, renderReview } from './screens/review.js';
 import { renderPuzzles, renderRush } from './screens/puzzles.js';
+import { renderCampaign } from './screens/campaign.js';
 import { trackGames } from './store/games.js';
 import { trackProgress } from './store/profile.js';
 import { installCelebrations } from './ui/celebrate.js';
+import { installCosmetics } from './ui/cosmetics.js';
 import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
@@ -154,6 +156,7 @@ function renderBotGame(outlet, { query }) {
 applyTheme(settings.get().theme);
 settings.on('change', (s) => applyTheme(s.theme));
 installSoundUnlock();
+installCosmetics();
 installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
 trackProgress();
 trackGames();
@@ -183,6 +186,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/profile$/, title: 'Profile', render: renderProfile },
   { pattern: /^\/games$/, title: 'Your games', render: renderGames },
   { pattern: /^\/puzzles$/, title: 'Puzzles', render: renderPuzzles },
+  { pattern: /^\/campaign$/, title: 'Campaign', render: renderCampaign },
   { pattern: /^\/rush$/, title: 'Puzzle Rush', render: renderRush },
   { pattern: /^\/review\/(?<id>[a-z0-9]{6,24})$/, title: 'Game review', render: (outlet, ctx) => renderReview(outlet, { ...ctx, startEngine }) },
   { pattern: /^\/openings\/(?<id>[a-z0-9-]{1,40})$/, title: 'Opening', render: renderOpening },

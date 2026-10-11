@@ -6,6 +6,7 @@ import { bus } from '../core/events.js';
 import { applyEvent, normalizeProfile, emptyProfile } from '../core/progression.js';
 import { START_FEN } from '../core/rules.js';
 import { completedLessons, completedOpenings } from './progress.js';
+import { gameById } from './games.js';
 
 const KEY = 'profile';
 
@@ -72,6 +73,13 @@ export function trackProgress({ store = appStore() } = {}) {
     bus.on('daily:solved', ({ day }) => recordEvent({ type: 'daily', day }, { store })),
     bus.on('puzzle:result', ({ solved, rating }) => recordEvent({ type: 'puzzle', solved, rating }, { store })),
     bus.on('rush:end', ({ score }) => recordEvent({ type: 'rush', score }, { store })),
+    // A reviewed win against the computer from the start position, without a blunder: third star.
+    bus.on('game:reviewed', ({ id }) => {
+      const g = gameById(id, store);
+      const won = g && (g.result === '1-0' ? 'w' : g.result === '0-1' ? 'b' : null) === g.playerColor;
+      if (!won || g.kind !== 'bot' || !g.personaId || g.startFen !== START_FEN) return;
+      if (g.review?.counts?.[g.playerColor]?.blunder === 0) recordEvent({ type: 'clean', personaId: g.personaId }, { store });
+    }),
   ];
   return () => offs.forEach((off) => off());
 }
