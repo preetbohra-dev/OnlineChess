@@ -7,6 +7,7 @@
   <meta name="description" content="Play chess with friends or the computer, and learn with a coach that explains every move.">
   <meta name="color-scheme" content="dark light">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script src="/js/theme-boot.js"></script>
   <link rel="stylesheet" href="/vendor/cm-chessboard/assets/chessboard.css">
   <link rel="stylesheet" href="/vendor/cm-chessboard/assets/extensions/markers/markers.css">
   <link rel="stylesheet" href="/vendor/cm-chessboard/assets/extensions/arrows/arrows.css">
@@ -20,6 +21,8 @@
     <nav class="topnav" aria-label="Main">
       <a href="#/play" data-nav="/play">Play</a>
       <a href="#/train" data-nav="/train">Train</a>
+      <a href="#/profile" data-nav="/profile" data-testid="nav-profile">Profile</a>
+      <button class="icon-btn" id="btn-settings" data-testid="btn-settings" type="button" aria-label="Settings" title="Settings">⚙︎</button>
     </nav>
   </header>
   <main id="app" tabindex="-1"></main>

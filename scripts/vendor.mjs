@@ -15,6 +15,10 @@ const SOURCES = [
   { pkg: 'cm-chessboard', dir: 'src', to: 'cm-chessboard/src', include: /\.js$/ },
   { pkg: 'cm-chessboard', dir: 'assets', to: 'cm-chessboard/assets', include: /\.(css|svg)$/ },
   { pkg: 'cm-chessboard', file: 'LICENSE', to: 'cm-chessboard' },
+  // Stockfish 19 lite, single-threaded: ~1.8 MB, no SharedArrayBuffer/COOP-COEP needed. GPL-3.0.
+  { pkg: 'stockfish', file: 'bin/stockfish-19-lite-single.js', to: 'stockfish', flat: true },
+  { pkg: 'stockfish', file: 'bin/stockfish-19-lite-single.wasm', to: 'stockfish', flat: true },
+  { pkg: 'stockfish', file: 'Copying.txt', to: 'stockfish' },
 ];
 
 // Regular files only: symlinks are skipped so a tampered package cannot pull outside files into public/.
@@ -36,7 +40,8 @@ export function vendorPlan() {
       continue;
     }
     if (source.file) {
-      plan.push({ src: path.join(pkgDir, source.file), dest: path.join(OUT, source.to, source.file) });
+      const name = source.flat ? path.basename(source.file) : source.file;
+      plan.push({ src: path.join(pkgDir, source.file), dest: path.join(OUT, source.to, name) });
       continue;
     }
     const base = path.join(pkgDir, source.dir);

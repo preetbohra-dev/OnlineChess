@@ -19,7 +19,7 @@ export class BoardView {
   #inputColor = null;
   #destroyed = false;
 
-  constructor(el, { fen, orientation = 'w', legalMoves, onMove, choosePromotion, showLegalDots = () => true, animationMs = 200 }) {
+  constructor(el, { fen, orientation = 'w', legalMoves, onMove, choosePromotion, showLegalDots = () => true, animationMs = 200, showCoordinates = true }) {
     this.legalMoves = legalMoves;
     this.onMove = onMove;
     this.choosePromotion = choosePromotion;
@@ -31,7 +31,7 @@ export class BoardView {
       style: {
         cssClass: 'oc',
         borderType: BORDER_TYPE.none,
-        showCoordinates: true,
+        showCoordinates,
         pieces: { file: 'pieces/staunty.svg' },
         animationDuration: animationMs,
       },
@@ -88,6 +88,10 @@ export class BoardView {
     if (piece && !this.#destroyed) this.onMove({ from, to, promotion: piece });
   }
 
+  setAnimationMs(ms) {
+    this.board.props.style.animationDuration = ms;
+  }
+
   setPosition(fen, animated = true) {
     return this.board.setPosition(fen, animated);
   }
@@ -118,10 +122,19 @@ export class BoardView {
     if (hint) this.board.addMarker(MARK.hint, hint);
   }
 
-  // arrows: [{from, to, type}] where type is an ARROW_TYPE value.
+  // Highlight several squares at once (lesson diagrams).
+  markSquares(squares = []) {
+    this.board.removeMarkers(MARK.hint);
+    for (const sq of squares) this.board.addMarker(MARK.hint, sq);
+  }
+
+  // arrows: [{from, to, type}] with type 'success' | 'danger' | 'warning' | 'info' | 'secondary'.
   setArrows(arrows = []) {
+    const key = JSON.stringify(arrows);
+    if (key === this.arrowKey) return; // avoid redrawing identical arrows on every render
+    this.arrowKey = key;
     this.board.removeArrows();
-    for (const a of arrows) this.board.addArrow(a.type ?? ARROW_TYPE.success, a.from, a.to);
+    for (const a of arrows) this.board.addArrow(ARROW_TYPE[a.type] ?? ARROW_TYPE.success, a.from, a.to);
   }
 
   destroy() {

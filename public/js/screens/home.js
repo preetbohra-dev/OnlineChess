@@ -1,13 +1,7 @@
 // Home and mode menus: Normal Mode (Against Person / Against Computer) and Training Mode.
 import { h } from '../ui/dom.js';
-
-const PERSONAS = [
-  { level: 'Novice', name: 'Pip the Pawn', avatar: '🐣', tagline: 'Just hatched. Hangs pieces, cheers loudly.' },
-  { level: 'Amateur', name: 'Rookie Rex', avatar: '🦖', tagline: 'Loves a cheap trick and a loud roar.' },
-  { level: 'Pro', name: 'Professor Hoot', avatar: '🦉', tagline: 'Patient, precise, and a little smug.' },
-  { level: 'Grand Master', name: 'Magnus the Wizard', avatar: '🧙', tagline: 'Sees combinations before you see the board.' },
-  { level: 'Beyond Humans', name: 'Deep Void', avatar: '👾', tagline: 'Full-strength Stockfish. Good luck.' },
-];
+import { PERSONAS } from '../data/personas.js';
+import { dashboard } from './profile.js';
 
 function optionCard({ testid, href, icon, title, eyebrow, text, soon = false }) {
   const content = [
@@ -39,7 +33,11 @@ export function renderHome(outlet) {
         h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '♛'),
         h('h2', {}, 'Training Mode'),
         h('p', {}, 'Learn the rules, tactics, openings and endgames, and get feedback on every move you make.'),
-        h('span', { class: 'mode-cta' }, 'Start learning →')))));
+        h('span', { class: 'mode-cta' }, 'Start learning →'))),
+    dashboard(),
+    h('footer', { class: 'credits muted' },
+      'Computer opponents are powered by ', h('a', { href: 'https://stockfishchess.org', rel: 'noopener', target: '_blank' }, 'Stockfish'),
+      ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '.')));
 }
 
 export function renderPlayMenu(outlet) {
@@ -49,25 +47,23 @@ export function renderPlayMenu(outlet) {
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against a person'),
       h('div', { class: 'option-list' },
-        optionCard({ testid: 'opt-local', href: '#/play/local', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen.' }),
-        optionCard({ testid: 'opt-online', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.', soon: true }))),
+        optionCard({ testid: 'opt-local', href: '#/play/local/new', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen.' }),
+        optionCard({ testid: 'opt-online', href: '#/play/online/new', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.' }))),
     h('section', { class: 'menu-section' },
       h('h2', {}, 'Against the computer'),
       h('div', { class: 'option-list', testid: 'opt-computer' },
-        PERSONAS.map((p) => optionCard({ icon: p.avatar, eyebrow: p.level, title: p.name, text: p.tagline, soon: true }))))));
+        PERSONAS.map((p) => optionCard({ testid: `opt-bot-${p.id}`, href: `#/play/bot/new?persona=${p.id}`, icon: p.avatar, eyebrow: `${p.level} · ${p.rating}`, title: p.name, text: p.tagline }))))));
 }
 
 export function renderTrainMenu(outlet) {
-  const items = [
-    ['🧑‍🏫', 'Coached game', 'Play while a coach grades every move and explains what you missed.'],
-    ['📚', 'Lessons', 'From how the pieces move to grandmaster studies.'],
-    ['📖', 'Openings', 'Learn the ideas behind 15 classic openings.'],
-    ['⚖️', 'Rules handbook', 'Every rule of chess, explained with examples.'],
-  ];
   outlet.append(h('div', { class: 'page menu' },
     h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Training Mode'),
     h('h1', {}, 'Training Mode'),
-    h('div', { class: 'option-list' }, items.map(([icon, title, text]) => optionCard({ icon, title, text, soon: true })))));
+    h('div', { class: 'option-list' },
+      optionCard({ testid: 'opt-coach', href: '#/train/coach', icon: '🧑‍🏫', title: 'Coached game', text: 'Play while a coach grades every move and explains what you missed.' }),
+      optionCard({ testid: 'opt-lessons', href: '#/learn', icon: '📚', title: 'Lessons', text: 'From how the pieces move to winning tactics, with puzzles.' }),
+      optionCard({ testid: 'opt-openings', href: '#/openings', icon: '📖', title: 'Openings', text: 'Learn the ideas behind 15 classic openings, then practise them from memory.' }),
+      optionCard({ testid: 'opt-rules', href: '#/rules', icon: '⚖️', title: 'Rules handbook', text: 'Every rule of chess, explained with diagrams.' }))));
 }
 
 export function renderNotFound(outlet) {
