@@ -11,6 +11,7 @@ import { createApi } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
 import { startReminders } from './push.js';
+import { loadPuzzleLibrary, WEEKLY_POOL_FILE } from './challenge.js';
 import { createRoomManager } from './rooms.js';
 import { parseClientMessage, MAX_MESSAGE_BYTES } from './protocol.js';
 import { createTokenBucket, createConnectionCounter } from './rate-limit.js';
@@ -31,6 +32,11 @@ function scheduleBackups(db, dir, keep = 7) {
   };
   run();
   setInterval(run, 6 * 60 * 60 * 1000).unref(); // checks four times a day; writes once per day
+}
+
+// The weekly challenge's puzzle pool (server-only), when present.
+function weeklyPool() {
+  return fs.existsSync(WEEKLY_POOL_FILE) ? loadPuzzleLibrary(WEEKLY_POOL_FILE) : null;
 }
 
 const DEFAULT_PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -78,11 +84,12 @@ export function createAppServer({
   authRate,
   syncRate,
   push = null, // { publicKey } when daily reminders are running
+  puzzles = undefined, // the weekly challenge's puzzle library (default: public/data/puzzles.json)
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push });
+  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles ?? weeklyPool() });
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];

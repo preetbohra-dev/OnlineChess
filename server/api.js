@@ -2,12 +2,15 @@
 //   POST /api/register {username, password} · POST /api/login {username, password}
 //   POST /api/logout · GET /api/me · GET /api/state · PUT /api/state {state}
 //   GET /api/push/key · POST /api/push/subscribe {subscription, tz, hour} · POST /api/push/unsubscribe {endpoint}
+//   GET /api/challenge · POST /api/challenge/answer {index, move} · POST /api/challenge/game {slot, moves}
+//   GET /api/challenge/leaderboard
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
 // SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock
 // after repeated wrong passwords (see auth.js).
 import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js';
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
+import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, PUZZLE_POINTS, MIN_MS_PER_PLY } from './challenge.js';
 
 export const SESSION_COOKIE = 'oc_session';
 const AUTH_BODY_BYTES = 2 * 1024;
@@ -60,7 +63,26 @@ export function createApi({
   hashRate = { rate: 30, burst: 60 }, // password hashes per second for the whole server (CPU guard)
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
   push = null, // { publicKey } when reminders are running
+  puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
 }) {
+  // The week's set is computed once per week.
+  let cachedSet = null;
+  const thisWeek = () => {
+    const week = challengeWeek(now());
+    if (cachedSet?.week !== week) cachedSet = weeklySet(week, puzzles);
+    return cachedSet;
+  };
+  const leaderboard = (week, limit) => db.q.leaderboard.all(PUZZLE_POINTS, week, week, limit);
+  // The public part of the leaderboard is cached briefly; it is the same for every visitor.
+  let boardCache = { at: 0, week: null, top: [], lastWeek: [] };
+  const cachedBoard = (week) => {
+    if (boardCache.week !== week || now() - boardCache.at > 15_000) {
+      boardCache = { at: now(), week, top: leaderboard(week, 50).map(({ rank, username, score }) => ({ rank, username, score })), lastWeek: leaderboard(lastWeekOf(week), 3).map(({ rank, username, score }) => ({ rank, username, score })) };
+    }
+    return boardCache;
+  };
+  const gameBucket = createTokenBucket({ rate: 20, burst: 40 }); // reported games checked per second, server-wide
+  const lastWeekOf = (week) => new Date(Date.parse(`${week}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
   const authBuckets = createBucketMap(authRate);
   const syncBuckets = createBucketMap(syncRate);
   const hashBucket = createTokenBucket(hashRate);
@@ -149,6 +171,67 @@ export function createApi({
         if (!body.ok) return send(res, body.status, { error: body.error });
         if (typeof body.value?.endpoint === 'string') db.q.deletePush.run(body.value.endpoint, user.id);
         return send(res, 200, { ok: true });
+      }
+
+      case 'GET /api/challenge': {
+        if (!puzzles) return send(res, 503, { error: 'The weekly challenge is not available.' });
+        if (!user) return send(res, 401, { error: 'Sign in to take part.' });
+        const set = thisWeek();
+        return send(res, 200, publicView(set, db.q.answers.all(user.id, set.week), db.q.gamesPlayed.all(user.id, set.week)));
+      }
+
+      case 'POST /api/challenge/start':
+      case 'POST /api/challenge/answer':
+      case 'POST /api/challenge/game': {
+        if (!puzzles) return send(res, 503, { error: 'The weekly challenge is not available.' });
+        if (!user) return send(res, 401, { error: 'Sign in to take part.' });
+        if (!syncBuckets.take(`c${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, route.endsWith('game') ? 8 * 1024 : AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const set = thisWeek();
+        // Every request names the week it was made for, so nothing lands on the next week's set.
+        if (body.value?.week !== set.week) return send(res, 409, { error: 'A new week has started. Reload to see this week\'s challenge.', week: set.week });
+        if (route.endsWith('start')) {
+          const slot = set.games[body.value?.slot];
+          if (!Number.isInteger(body.value?.slot) || !slot) return send(res, 400, { error: 'No such game.' });
+          db.q.startGame.run(user.id, set.week, slot.slot, now());
+          return send(res, 200, { ok: true });
+        }
+        if (route.endsWith('answer')) {
+          const p = set.puzzles[body.value?.index];
+          if (!Number.isInteger(body.value?.index) || !p) return send(res, 400, { error: 'No such puzzle.' });
+          if (typeof body.value.move !== 'string' || !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(body.value.move)) return send(res, 400, { error: 'Bad move.' });
+          const correct = isCorrect(p, body.value.move);
+          // One attempt: a second answer for the same puzzle is ignored.
+          const added = db.q.addAnswer.run(user.id, set.week, p.index, body.value.move, correct ? 1 : 0, now()).changes;
+          const stored = db.q.answers.all(user.id, set.week).find((a) => a.idx === p.index);
+          return send(res, 200, { correct: Boolean(stored.correct), best: p.answer, first: added === 1 });
+        }
+        const slot = set.games[body.value?.slot];
+        if (!Number.isInteger(body.value?.slot) || !slot) return send(res, 400, { error: 'No such game.' });
+        if (!gameBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' });
+        const started = db.q.gameStart.get(user.id, set.week, slot.slot);
+        if (!started) return send(res, 400, { error: 'Start challenge games from the weekly challenge page.' });
+        const scored = scoreGame(slot, body.value.moves);
+        if (!scored.ok) return send(res, 400, { error: scored.error });
+        // A real game takes time: reject results that arrive faster than the moves could be played.
+        if (now() - started.at < scored.plies * MIN_MS_PER_PLY) return send(res, 400, { error: 'That game was too quick to count.' });
+        const added = db.q.addGame.run(user.id, set.week, slot.slot, scored.outcome, scored.points, scored.plies, now()).changes;
+        return send(res, 200, { outcome: scored.outcome, points: scored.points, first: added === 1 });
+      }
+
+      case 'GET /api/challenge/leaderboard': {
+        if (!puzzles) return send(res, 503, { error: 'The weekly challenge is not available.' });
+        if (!syncBuckets.take(`l${addressOf(req)}`)) return send(res, 429, { error: 'Too many requests.' });
+        const week = thisWeek().week;
+        const board = cachedBoard(week);
+        const row = user ? db.q.myRank.get(PUZZLE_POINTS, week, week, user.id) : null;
+        return send(res, 200, {
+          week,
+          top: board.top,
+          me: user ? { username: user.username, rank: row?.score > 0 ? row.rank : null, score: row?.score ?? 0 } : null,
+          lastWeek: board.lastWeek,
+        });
       }
 
       default:
