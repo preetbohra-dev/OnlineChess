@@ -8,6 +8,8 @@ import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { appLinkFiles } from './app-links.js';
+import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
+import { createEmailAuth } from './email-auth.js';
 import { createApi } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -97,13 +99,22 @@ export function createAppServer({
   push = null, // { publicKey } when daily reminders are running
   puzzles = undefined, // the weekly challenge's puzzle library (default: WEEKLY_POOL_FILE; null: none)
   appLinks = appLinkFiles(), // /.well-known files that let site links open the apps (server/app-links.js)
+  // Email sign-in (server/mail.js, server/email-auth.js): off unless a Resend key or MAIL=dry.
+  mailer = createMailer({ apiKey: loadAuthEnv().RESEND_API_KEY ?? '' }),
+  publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
+  mailLimits = createMailLimits(),
+  testHooks = process.env.TEST_HOOKS === '1', // test runs: expose the dry-run outbox
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
   const apps = new Set(appOrigins);
   const fromApp = (req) => typeof req.headers.origin === 'string' && apps.has(req.headers.origin);
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const emailAuth = db && mailer.enabled ? createEmailAuth({ db, accounts, mailer, mailLimits, origin: publicOrigin }) : null;
+  // The dry-run outbox holds real codes: readable only by test runs on an in-memory database.
+  const inMemory = Boolean(db) && !(db.raw.location?.() ?? '');
+  const outbox = testHooks && process.env.MAIL === 'dry' && inMemory ? mailer.outbox : null;
+  const api = createApi({ db, accounts, emailAuth, outbox, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
@@ -199,6 +210,7 @@ export function createAppServer({
     manager.gc();
     attempts.clear(); // buckets refill within seconds; dropping them bounds memory
     accounts?.pruneSessions();
+    emailAuth?.prune();
   }, GC_MS);
   heartbeat.unref();
   gc.unref();
@@ -207,6 +219,7 @@ export function createAppServer({
     http: server,
     rooms: manager,
     accounts,
+    mailer,
     serviceWorker: serveStatic.serviceWorker,
     close() {
       clearInterval(heartbeat);
@@ -231,6 +244,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   // Accounts live in SQLite outside the repository; DB_PATH=off runs without them.
   const dbPath = process.env.DB_PATH || DEFAULT_DB_PATH;
+  // Keeping emails in memory (MAIL=dry) would swallow real players' sign-in codes: tests only.
+  if (process.env.MAIL === 'dry' && dbPath !== ':memory:') throw new Error('MAIL=dry is for test runs (DB_PATH=:memory:) only');
   const db = dbPath === 'off' ? null : openDatabase(dbPath);
   if (db && dbPath !== ':memory:') scheduleBackups(db, path.join(path.dirname(dbPath), 'backups'));
   // Daily reminders need accounts (to know whether today's puzzle is solved). PUSH=off disables them.
@@ -242,6 +257,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     db,
     push: reminders ? { publicKey: reminders.publicKey } : null,
     authRate: { rate: 0.2, burst: intEnv('AUTH_BURST', 10) },
+    mailLimits: createMailLimits({ perInbox: intEnv('MAIL_INBOX_BURST', 3), perAddress: intEnv('MAIL_ADDRESS_BURST', 20) }),
     syncRate: { rate: 0.5, burst: intEnv('SYNC_BURST', 5) },
     rooms: { maxRoomsPerAddress: intEnv('ROOMS_PER_ADDRESS', 5), createsPerHour: intEnv('ROOM_CREATES_PER_HOUR', 20) },
     connectRate: { rate: 1, burst: intEnv('WS_CONNECT_BURST', 10) },

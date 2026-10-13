@@ -22,6 +22,7 @@ import { renderOnlineNew, renderRoom } from './screens/online.js';
 import { renderCoachSetup } from './screens/coach-setup.js';
 import { renderLearnHub, renderLesson, renderDaily } from './screens/learn.js';
 import { renderProfile } from './screens/profile.js';
+import { renderAuthLink } from './screens/auth-link.js';
 import { renderGames, renderReview } from './screens/review.js';
 import { renderPuzzles, renderRush } from './screens/puzzles.js';
 import { renderCampaign } from './screens/campaign.js';
@@ -220,6 +221,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/openings$/, title: 'Openings', render: renderOpeningsHub },
   { pattern: /^\/daily$/, title: 'Daily puzzle', render: renderDaily },
   { pattern: /^\/profile$/, title: 'Profile', render: renderProfile },
+  { pattern: /^\/auth$/, title: 'Sign in', render: renderAuthLink },
   { pattern: /^\/games$/, title: 'Your games', render: renderGames },
   { pattern: /^\/puzzles$/, title: 'Puzzles', render: renderPuzzles },
   { pattern: /^\/campaign$/, title: 'Campaign', render: renderCampaign },

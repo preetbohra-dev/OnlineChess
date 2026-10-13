@@ -70,18 +70,17 @@ export function signInEmail({ code, link }) {
   };
 }
 
-// Confirm the address of a new account (or a changed email).
-export function verifyEmail({ link }) {
+// Confirm the address of a new account (or a changed email): a link and a code, like sign-in.
+export function confirmEmail({ code, link }) {
   checkLink(link);
+  if (!/^\d{6}$/.test(String(code))) throw new Error('bad code for an email');
   return {
-    subject: 'Confirm your email for OnlineChess',
-    text: `Confirm your email address for OnlineChess:\n${link}\n\nThe link works for 24 hours.\n`,
-    html: layout('Confirm your email', `<p>One tap to confirm this is your address, so you can always get back into your account.</p>${button(link, 'Confirm email')}<p style="color:#6b6f78;font-size:14px">The link works for 24 hours.</p>`),
+    subject: `${code} is your OnlineChess confirmation code`,
+    text: `Confirm your email address for OnlineChess with this code: ${code}\n\nOr open this link:\n${link}\n\nThe code and link work once, for 15 minutes.\n`,
+    html: layout('Confirm your email', `<p>One step left: confirm this is your address, so you can always get back into your account.</p><p style="font:700 32px monospace;letter-spacing:6px;margin:8px 0">${escapeHtml(code)}</p>${button(link, 'Confirm email')}<p style="color:#6b6f78;font-size:14px">The code and link work once, for 15 minutes.</p>`),
   };
 }
 
-// How many sign-in and confirmation emails may go out per hour: to one inbox, from one network
-// address, and in total (a cap on what an attacker could make us send, and on the free tier).
 // The inbox limit is a cool-down (3 per 15 minutes), not a lock-out: the sign-in code and link
 // already sent keep working, and password and Google sign-in never depend on it, so nobody can
 // keep a player out by asking for emails to their address. `address` is an addressKey().

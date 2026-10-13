@@ -89,6 +89,25 @@ const MIGRATIONS = [
      PRIMARY KEY (reporter_id, reported_id)
    );
    CREATE INDEX reports_reported ON reports(reported_id);`,
+  // 6: email accounts. An email is confirmed before it is ever stored, so every stored email is
+  // the player's. One-time sign-in links and codes (only their hashes) live in email_tokens;
+  // `payload` holds a pending sign-up (display name, password hash) until it is confirmed.
+  `ALTER TABLE users ADD COLUMN email TEXT;
+   ALTER TABLE users ADD COLUMN email_verified_at INTEGER;
+   CREATE UNIQUE INDEX users_email ON users(email) WHERE email IS NOT NULL;
+   CREATE TABLE email_tokens (
+     token_hash TEXT PRIMARY KEY,
+     code_hash TEXT NOT NULL,
+     email TEXT NOT NULL,
+     purpose TEXT NOT NULL,
+     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+     payload TEXT,
+     created_at INTEGER NOT NULL,
+     expires_at INTEGER NOT NULL,
+     used_at INTEGER,
+     tries INTEGER NOT NULL DEFAULT 0
+   );
+   CREATE INDEX email_tokens_email ON email_tokens(email);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -120,7 +139,18 @@ function wrap(db) {
   const q = {
     insertUser: db.prepare('INSERT INTO users (username, pass_hash, created_at) VALUES (?, ?, ?)'),
     userByName: db.prepare('SELECT * FROM users WHERE username = ?'),
-    userById: db.prepare('SELECT id, username, created_at FROM users WHERE id = ?'),
+    userById: db.prepare("SELECT id, username, created_at, email, pass_hash <> '!' AS has_password FROM users WHERE id = ?"),
+    userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
+    insertEmailUser: db.prepare('INSERT INTO users (username, pass_hash, created_at, email, email_verified_at) VALUES (?, ?, ?, ?, ?)'),
+    setEmail: db.prepare('UPDATE users SET email = ?, email_verified_at = ? WHERE id = ?'),
+    setUsername: db.prepare('UPDATE users SET username = ? WHERE id = ?'),
+    deleteOtherSessions: db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?'),
+    addEmailToken: db.prepare('INSERT INTO email_tokens (token_hash, code_hash, email, purpose, user_id, payload, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+    emailTokenByHash: db.prepare('SELECT * FROM email_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?'),
+    activeEmailTokens: db.prepare('SELECT * FROM email_tokens WHERE email = ? AND used_at IS NULL AND expires_at > ? AND tries < ?'),
+    useEmailToken: db.prepare('UPDATE email_tokens SET used_at = ?, payload = NULL WHERE token_hash = ? AND used_at IS NULL'),
+    voidEmailTokens: db.prepare('UPDATE email_tokens SET used_at = ?, payload = NULL WHERE email = ? AND used_at IS NULL'),
+    pruneEmailTokens: db.prepare('DELETE FROM email_tokens WHERE expires_at < ?'),
     setLoginState: db.prepare('UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?'),
     setPassword: db.prepare('UPDATE users SET pass_hash = ?, failed_logins = 0, locked_until = 0 WHERE id = ?'),
     deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),

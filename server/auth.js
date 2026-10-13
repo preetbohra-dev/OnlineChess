@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { nameProblem } from './names.js';
+import { normalizeEmail } from './mail.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -98,16 +99,21 @@ export function createAccounts(db, { now = () => Date.now() } = {}) {
 
     // The answer is the same — and takes as long — for an unknown user, a wrong password and a
     // locked-out address. Attempts are counted before the (slow) check, so parallel guesses count.
+    // `username` may also be the account's email (an email is stored only once confirmed).
     async login(username, password, address = 'local') {
-      const generic = { ok: false, status: 401, error: 'Wrong username or password.' };
+      const generic = { ok: false, status: 401, error: 'Wrong email, username or password.' };
       if (typeof username !== 'string' || typeof password !== 'string' || password.length > PASSWORD_MAX) return generic;
-      const user = USERNAME.test(username) ? db.q.userByName.get(username) : null;
+      const byEmail = username.includes('@');
+      const user = byEmail ? (username.length <= 254 ? db.q.userByEmail.get(normalizeEmail(username)) : null)
+        : USERNAME.test(username) ? db.q.userByName.get(username) : null;
       if (!user) { await verifyPassword(password, await dummy()); return generic; }
       const key = `${user.id}|${address}`;
       const rec = attemptRecord(key);
       if (rec.lockedUntil > now()) { await verifyPassword(password, await dummy()); return generic; }
       rec.count++;
       if (rec.count >= LOCK_AFTER) rec.lockedUntil = now() + LOCK_WINDOW_MS;
+      // An account without a password takes as long to refuse as a wrong password.
+      if (!user.pass_hash.startsWith('scrypt$')) { await verifyPassword(password, await dummy()); return generic; }
       if (!(await verifyPassword(password, user.pass_hash))) return generic;
       attempts.delete(key);
       return { ok: true, user: { id: user.id, username: user.username }, token: newSession(user.id) };
@@ -138,6 +144,46 @@ export function createAccounts(db, { now = () => Date.now() } = {}) {
       if (!row) return null;
       if (row.expires_at < now()) { db.q.deleteSession.run(tokenHash(token)); return null; }
       return { id: row.user_id, username: row.username };
+    },
+
+    // The account's password, checked like a sign-in (same lockout). -> { ok } | { ok: false, … }
+    async checkPassword(userId, password, address = 'local') {
+      const wrong = { ok: false, status: 401, error: 'Your password is wrong.' };
+      const row = db.q.userById.get(userId);
+      if (!row?.has_password || typeof password !== 'string' || password.length > PASSWORD_MAX) return wrong;
+      const key = `${userId}|${address}`;
+      const rec = attemptRecord(key);
+      if (rec.lockedUntil > now()) return wrong;
+      rec.count++;
+      if (rec.count >= LOCK_AFTER) rec.lockedUntil = now() + LOCK_WINDOW_MS;
+      if (!(await verifyPassword(password, db.q.userByName.get(row.username).pass_hash))) return wrong;
+      attempts.delete(key);
+      return { ok: true };
+    },
+
+    // Change the password (the current one is required), or set a first one once the caller has
+    // proved the player still reads the account's email (`proven`). -> { ok } | { ok: false, … }
+    async changePassword(userId, current, password, address = 'local', { proven = false } = {}) {
+      const row = db.q.userById.get(userId);
+      if (!row) return { ok: false, status: 401, error: 'Sign in first.' };
+      const problem = validateCredentials(row.username, password);
+      if (problem) return { ok: false, status: 400, error: problem };
+      if (row.has_password) {
+        if (!(await this.checkPassword(userId, current, address)).ok) return { ok: false, status: 401, error: 'Your current password is wrong.' };
+      } else if (!proven) {
+        return { ok: false, status: 401, error: 'Enter the code we emailed you first.' };
+      }
+      db.q.setPassword.run(await hashPassword(password), userId);
+      return { ok: true };
+    },
+
+    // A new session for a player who proved who they are some other way (an email code, Google).
+    startSession(userId) {
+      return newSession(userId);
+    },
+    // Sign the player out everywhere except this session (after a password change).
+    endOtherSessions(userId, token) {
+      db.q.deleteOtherSessions.run(userId, typeof token === 'string' ? tokenHash(token) : '');
     },
 
     logout(token) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createMailer, loadAuthEnv, validEmail, normalizeEmail, signInEmail, verifyEmail, FROM } from '../../server/mail.js';
+import { createMailer, loadAuthEnv, validEmail, normalizeEmail, signInEmail, confirmEmail, FROM } from '../../server/mail.js';
 
 test('email addresses: a plain check, lower-cased, no header tricks', () => {
   for (const ok of ['a@b.co', 'First.Last+tag@Example.com', 'x_y-z@sub.domain.org']) assert.ok(validEmail(ok), ok);
@@ -33,10 +33,10 @@ test('templates: the sign-in email has the link and the code, escaped in HTML', 
   assert.match(m.html, /t=a&amp;b=c/);
   assert.throws(() => signInEmail({ code: '12345', link: 'https://x/l' }), /bad code/);
   assert.throws(() => signInEmail({ code: '123456', link: 'javascript:alert(1)' }), /bad link/);
-  assert.throws(() => verifyEmail({ link: 'https://x/l"><script>' }), /bad link/);
-  const v = verifyEmail({ link: 'https://chess.example/auth/verify?t=1' });
-  assert.match(v.subject, /Confirm/);
-  assert.match(v.html, /auth\/verify\?t=1/);
+  assert.throws(() => confirmEmail({ code: '123456', link: 'https://x/l"><script>' }), /bad link/);
+  const v = confirmEmail({ code: '654321', link: 'https://chess.example/#/auth?t=1' });
+  assert.match(v.subject, /654321 is your OnlineChess confirmation code/);
+  assert.match(v.html, /#\/auth\?t=1/);
 });
 
 test('dry run keeps the last emails in an outbox and sends nothing', async () => {

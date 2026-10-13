@@ -1,19 +1,8 @@
-import { test, expect, move } from './helpers.js';
+import { test, expect, move, signUp } from './helpers.js';
 import { weeklySet, challengeWeek, loadPuzzleLibrary } from '../../server/challenge.js';
 
 const LIB = loadPuzzleLibrary(new URL('../fixtures/weekly-puzzles.json', import.meta.url).pathname);
-const PW = 'correct horse battery';
 
-async function signUp(page) {
-  const name = `w${Date.now().toString(36)}${Math.floor(Math.random() * 1e3)}`.slice(0, 20);
-  await page.goto('/#/profile');
-  await page.getByTestId('btn-account-mode').click();
-  await page.getByTestId('account-username').fill(name);
-  await page.getByTestId('account-password').fill(PW);
-  await page.getByTestId('btn-account-submit').click();
-  await expect(page.getByTestId('account-user')).toContainText(name);
-  return name;
-}
 
 test('guests see the leaderboard and an invitation to sign in', async ({ page }) => {
   await page.goto('/#/train');

@@ -495,6 +495,12 @@ html { scroll-padding-top: 72px; }
 /* Account */
 .account-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.field .muted.small { font-weight: 400; }
+.btn-link { background: none; border: 0; padding: 4px 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.btn-link:hover { color: var(--accent-strong, var(--accent)); }
+.account-alt { margin: var(--space-2) 0 0; color: var(--muted); }
+.account-nudge { padding: var(--space-3); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; }
+.auth-link .btn { margin-top: var(--space-3); }
 .form-error { margin: 0; color: var(--danger); }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
 
