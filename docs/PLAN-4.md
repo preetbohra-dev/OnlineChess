@@ -71,3 +71,23 @@ The user dropped Microsoft sign-in on 2026-10-13: email or Google, and Apple lat
 Slices 27–29 change the website and server and can ship to the live site one by one. Slice 30
 needs a new app build. The Play closed test can start with that build (version 1.0.0 has not been
 uploaded yet), so testers see the new sign-up from day one.
+
+## 7. Security requirements for email sign-in (from the slice 27 review)
+
+- Tokens: 32 random bytes, base64url; codes: 6 digits from `crypto.randomInt`. Only SHA-256
+  hashes are stored. Expiry 15 minutes (sign-in) or 24 hours (confirm). Single use: claimed with
+  an atomic `UPDATE … WHERE used_at IS NULL`.
+- A code is bound to the email it was sent to. Five wrong tries and it is void; also count tries
+  per email, not only per network address.
+- The same answer, at the same speed, whether or not an email has an account. Sending happens in
+  the background. Signing up with an email that already has an account sends that inbox a
+  "you already have an account" email instead of an error.
+- Opening a link (GET) shows a "Sign in" page and changes nothing; the token is used on POST, so
+  link scanners in mail systems cannot use it up. Pages with tokens send `Referrer-Policy:
+  no-referrer` and remove the token from the address bar.
+- Each sign-in creates a new session. Resetting a password ends every other session. Other
+  outstanding links are void after a successful sign-in or reset.
+- The inbox limit is a cool-down, never a lock-out: earlier codes keep working, and password and
+  Google sign-in never depend on email limits.
+- `MAIL=dry` (keeping emails in memory) is for tests only and is refused when the server runs on
+  its live port with real hosts.
