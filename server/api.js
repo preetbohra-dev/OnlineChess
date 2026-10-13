@@ -312,6 +312,15 @@ export function createApi({
         return send(res, 200, { username: row.username, email: row.email ?? null, hasPassword: Boolean(row.has_password), google: providers.includes('google') });
       }
 
+      // "Connect Google": a one-time ticket for /auth/google/start?link=… (CSRF-checked here).
+      case 'POST /api/auth/google/link': {
+        if (!google) return send(res, 503, { error: 'Google sign-in is not available.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        const ticket = google.linkTicket(user.id);
+        if (!ticket) return send(res, 503, { error: 'Busy. Try again in a moment.' });
+        return send(res, 200, { url: `/auth/google/start?link=${ticket}` });
+      }
+
       // Which ways of signing in this server offers (the page shows only those).
       case 'GET /api/auth/providers':
         return send(res, 200, { email: Boolean(emailAuth), google: Boolean(google) });

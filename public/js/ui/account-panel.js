@@ -7,7 +7,7 @@ import { openModal } from './modal.js';
 import { toast } from './toast.js';
 import {
   currentUser, lastSynced, login, logout, syncNow, deleteAccount,
-  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen, loadProviders,
+  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen, loadProviders, googleLinkUrl,
 } from '../store/account.js';
 import { isNativeApp } from '../net/platform.js';
 
@@ -279,7 +279,15 @@ export function accountSection() {
         : details ? h('p', { class: 'account-nudge', testid: 'add-email-nudge' }, 'Add an email so you can always get back into this account. ',
           h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-add-email-open', onClick: () => go('email') }, 'Add email')) : null,
       details?.google ? h('p', { class: 'muted small', testid: 'google-linked' }, 'Google account connected: you can sign in with Google.')
-        : google && details ? h('p', {}, googleButton('/auth/google/start?link=1', 'Connect Google', 'btn-google-link')) : null,
+        : google && details ? h('p', {}, (() => {
+          const b = googleButton('/auth/google/start', 'Connect Google', 'btn-google-link');
+          b.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const r = await googleLinkUrl();
+            if (r.ok) location.assign(r.json.url); else toast(r.error, { kind: 'warn' });
+          });
+          return b;
+        })()) : null,
       h('p', { class: 'muted small', testid: 'account-synced' }, synced ? `Last synced ${synced.toLocaleTimeString()}.` : 'Syncing…'),
     ];
     if (mode === 'name') view.push(nameForm(user));

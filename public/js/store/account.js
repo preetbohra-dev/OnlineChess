@@ -82,10 +82,15 @@ export const useLink = (token, store = appStore()) => signIn('/api/auth/link', {
 // `proof`: { password } or { code } (a code sent to the account's current email).
 export const addEmail = (email, proof = {}) => ask('POST', '/api/account/email', { email, ...proof });
 export const loadAccount = () => ask('GET', '/api/account');
+// "Connect Google": the server gives a one-time address to go to.
+export const googleLinkUrl = () => ask('POST', '/api/auth/google/link', {});
 // Which ways of signing in the server offers: { email, google }. Asked once per page load.
 let providers = null;
 export function loadProviders() {
-  providers ??= ask('GET', '/api/auth/providers').then((r) => (r.ok ? r.json : { email: false, google: false }));
+  providers ??= ask('GET', '/api/auth/providers').then((r) => {
+    if (!r.ok) providers = null; // offline or a hiccup: ask again next time
+    return r.ok ? r.json : { email: false, google: false };
+  });
   return providers;
 }
 export const changePassword = (current, password, code) => ask('POST', '/api/account/password', { password, ...(code ? { code } : { current }) });

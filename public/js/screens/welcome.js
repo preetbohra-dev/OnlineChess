@@ -15,7 +15,7 @@ const PROBLEMS = {
 };
 
 export function renderWelcome(outlet, { query }) {
-  outlet.append(h('div', { class: 'page menu', testid: 'welcome' }, h('p', { class: 'muted' }, 'Signing you in…')));
+  outlet.append(h('div', { class: 'page menu', testid: 'welcome' }, h('p', { class: 'muted', role: 'status' }, 'Signing you in…')));
   const error = query.get('error');
   history.replaceState(null, '', `${location.pathname}#/welcome`);
   if (error) {
@@ -26,7 +26,7 @@ export function renderWelcome(outlet, { query }) {
   const isNew = query.get('new') === '1';
   refreshMe().then((user) => {
     if (user && isNew) markNameWanted();
-    if (user) { toast('Signed in with Google.'); syncNow(); }
+    if (user) { toast('Signed in with Google.'); syncNow(); } else toast('Could not finish signing in. Please try again.', { kind: 'warn' });
     navigate('/profile');
   });
 }

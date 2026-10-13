@@ -10,6 +10,7 @@
 import crypto from 'node:crypto';
 import { normalizeEmail, validEmail } from './mail.js';
 import { suggestUsername, NO_PASSWORD } from './email-auth.js';
+import { readCookie } from './api.js';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -19,6 +20,7 @@ const FLOW_TTL_MS = 10 * 60_000;
 const MAX_FLOWS = 5_000;
 const STATE_COOKIE = 'oc_google';
 const TIMEOUT_MS = 10_000;
+const MIN_REFETCH_MS = 60_000; // forced key refreshes (after an unknown key) at most this often
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 const random = (n = 32) => b64url(crypto.randomBytes(n));
@@ -57,33 +59,28 @@ export function verifyIdToken(idToken, { keys, clientId, nonce, now = Date.now()
   return claims;
 }
 
-const readCookie = (req, name) => {
-  for (const part of (req.headers.cookie ?? '').split(';')) {
-    const [k, ...v] = part.trim().split('=');
-    if (k === name) return v.join('=');
-  }
-  return null;
-};
 
 export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin, fetchImpl = globalThis.fetch, now = () => Date.now() }) {
   const redirectUri = `${origin}/auth/google/callback`;
   const flows = new Map(); // state -> { verifier, nonce, created, linkUserId }
-  let certs = { keys: [], until: 0 };
+  const linkTickets = new Map(); // one-time ticket -> { userId, created }: "Connect Google" from the page
+  let certs = { keys: [], until: 0, fetched: 0 };
 
   async function googleKeys(force = false) {
     if (!force && certs.until > now() && certs.keys.length) return certs.keys;
+    if (force && now() - certs.fetched < MIN_REFETCH_MS) return certs.keys;
     const res = await fetchImpl(CERTS_URL, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!res.ok) throw new Error(`Google keys: ${res.status}`);
     const json = await res.json();
     const maxAge = Number(/max-age=(\d+)/.exec(res.headers.get('cache-control') ?? '')?.[1] ?? 3600);
-    certs = { keys: Array.isArray(json.keys) ? json.keys : [], until: now() + Math.min(maxAge, 86_400) * 1000 };
+    certs = { keys: Array.isArray(json.keys) ? json.keys : [], until: now() + Math.min(maxAge, 86_400) * 1000, fetched: now() };
     return certs.keys;
   }
 
   function prune() {
     const t = now();
     for (const [state, f] of flows) if (t - f.created > FLOW_TTL_MS) flows.delete(state);
-    while (flows.size > MAX_FLOWS) flows.delete(flows.keys().next().value);
+    for (const [ticket, l] of linkTickets) if (t - l.created > FLOW_TTL_MS) linkTickets.delete(ticket);
   }
 
   // The player for a Google account: already linked; else the signed-in player who asked to link
@@ -94,9 +91,12 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
     const t = now();
     return db.transaction(() => {
       const linked = db.q.identity.get('google', claims.sub);
+      if (linkUserId && !db.q.userById.get(linkUserId)) return { conflict: true }; // deleted meanwhile
+      if (linked && linkUserId && linked.user_id !== linkUserId) return { conflict: true }; // linked to someone else: never switch accounts
       if (linked) return { userId: linked.user_id, created: false };
       const byEmail = email ? db.q.userByEmail.get(email) : null;
       if (linkUserId && byEmail && byEmail.id !== linkUserId) return { conflict: true };
+      if (linkUserId && db.q.identitiesForUser.all(linkUserId).some((i) => i.provider === 'google')) return { conflict: true }; // one Google account per player
       let userId = linkUserId ?? byEmail?.id ?? null;
       let created = false;
       if (!userId) {
@@ -111,9 +111,26 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
   }
 
   return {
-    // -> { location, cookie }
+    // "Connect Google" for a signed-in player: a one-time ticket from a CSRF-checked API call, so
+    // another site cannot start a link by sending the player to /auth/google/start.
+    linkTicket(userId) {
+      prune();
+      if (linkTickets.size >= MAX_FLOWS) return null;
+      const ticket = random();
+      linkTickets.set(ticket, { userId, created: now() });
+      return ticket;
+    },
+    useLinkTicket(ticket) {
+      const l = typeof ticket === 'string' ? linkTickets.get(ticket) : null;
+      linkTickets.delete(ticket);
+      return l && now() - l.created <= FLOW_TTL_MS ? l.userId : null;
+    },
+
+    // -> { location, state } | null when too many sign-ins are under way (new ones wait; the ones
+    // already started are never pushed out)
     start({ linkUserId = null } = {}) {
       prune();
+      if (flows.size >= MAX_FLOWS) return null;
       const state = random();
       const verifier = random(48);
       const nonce = random();
@@ -133,13 +150,15 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
     },
 
     // -> { ok: true, userId, token, created } | { ok: false, reason }
-    async callback(req, query) {
+    // `sessionUserId`: who is signed in on this browser now (a link must still be for them).
+    async callback(req, query, sessionUserId = null) {
       const state = query.get('state') ?? '';
       const flow = flows.get(state);
       flows.delete(state); // one use
       if (!flow || now() - flow.created > FLOW_TTL_MS) return { ok: false, reason: 'expired' };
+      if (flow.linkUserId && flow.linkUserId !== sessionUserId) return { ok: false, reason: 'expired' };
       const cookieState = readCookie(req, STATE_COOKIE);
-      if (!cookieState || cookieState.length !== state.length || !crypto.timingSafeEqual(Buffer.from(cookieState), Buffer.from(state))) return { ok: false, reason: 'browser' };
+      if (!cookieState || !crypto.timingSafeEqual(sha256(cookieState), sha256(state))) return { ok: false, reason: 'browser' };
       if (query.get('error')) return { ok: false, reason: 'cancelled' };
       const code = query.get('code');
       if (!code || code.length > 2048) return { ok: false, reason: 'bad' };

@@ -47,7 +47,12 @@ test.after(async () => { await app.close(); db.close(); });
 
 // Runs the round trip: start -> (Google) -> callback. -> { location, session }
 async function viaGoogle({ cookie = '', keepState = true, link = false } = {}) {
-  const start = await fetch(`${base}/auth/google/start${link ? '?link=1' : ''}`, { redirect: 'manual', headers: cookie ? { Cookie: cookie } : {} });
+  let path = '/auth/google/start';
+  if (link) {
+    const r = await fetch(`${base}/api/auth/google/link`, { method: 'POST', headers: { Origin: base, 'X-OC-Request': '1', Cookie: cookie, 'Content-Type': 'application/json' }, body: '{}' });
+    path = (await r.json()).url;
+  }
+  const start = await fetch(`${base}${path}`, { redirect: 'manual', headers: cookie ? { Cookie: cookie } : {} });
   assert.equal(start.status, 302);
   const to = new URL(start.headers.get('location'));
   assert.equal(to.origin + to.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
@@ -122,6 +127,44 @@ test('the round trip must come back to the same browser, and the token must be g
   assert.equal((await viaGoogle()).location, '/#/welcome?error=bad');
   const replay = await fetch(`${base}/auth/google/callback?code=x&state=unknown`, { redirect: 'manual' });
   assert.equal(replay.headers.get('location'), '/#/welcome?error=expired');
+});
+
+test('Google says no or fails: a clear reason, nobody signed in', async () => {
+  const start = await fetch(`${base}/auth/google/start`, { redirect: 'manual' });
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const cookie = start.headers.get('set-cookie').split(';')[0];
+  const denied = await fetch(`${base}/auth/google/callback?error=access_denied&state=${state}`, { redirect: 'manual', headers: { Cookie: cookie } });
+  assert.equal(denied.headers.get('location'), '/#/welcome?error=cancelled');
+  assert.equal((await fetch(`${base}/auth/google/callback?code=x&state=${state}`, { redirect: 'manual', headers: { Cookie: cookie } })).headers.get('location'), '/#/welcome?error=expired', 'a state works once');
+
+  nextToken = () => { throw new Error('token endpoint down'); };
+  const failing = await viaGoogle().catch(() => null);
+  assert.equal(failing?.location, '/#/welcome?error=google');
+  const odd = await fetch(`${base}/auth/google/callback?code=x&state=${state}`, { redirect: 'manual', headers: { Cookie: 'oc_google=\u00e9\u00e9' } });
+  assert.equal(odd.status, 302, 'a strange cookie is an error page, not a crash');
+});
+
+test('linking needs a fresh ticket from the page; a ticket is for one player and one use', async () => {
+  const session = `oc_session=${app.accounts.startSession(db.q.userByName.get('Linker').id)}`;
+  assert.equal((await fetch(`${base}/auth/google/start?link=1`, { redirect: 'manual', headers: { Cookie: session } })).headers.get('location'), '/#/welcome?error=expired', 'a made-up ticket');
+  const r = await fetch(`${base}/api/auth/google/link`, { method: 'POST', headers: { Origin: base, 'X-OC-Request': '1', Cookie: session, 'Content-Type': 'application/json' }, body: '{}' });
+  const { url } = await r.json();
+  assert.equal((await fetch(`${base}${url}`, { redirect: 'manual' })).headers.get('location'), '/#/welcome?error=expired', 'without the session it was issued to');
+  assert.equal((await fetch(`${base}${url}`, { redirect: 'manual', headers: { Cookie: session } })).headers.get('location'), '/#/welcome?error=expired', 'and only once');
+  assert.equal((await fetch(`${base}/api/auth/google/link`, { method: 'POST', headers: { Origin: 'https://evil.example', 'X-OC-Request': '1', Cookie: session } })).status, 403);
+});
+
+test('connecting a Google account that is already another player\'s never switches accounts', async () => {
+  db.q.insertUser.run('Third', '!', Date.now());
+  const session = `oc_session=${app.accounts.startSession(db.q.userByName.get('Third').id)}`;
+  nextToken = (nonce) => idToken(claimsFor(nonce)); // sub 1001: the first test's player
+  assert.equal((await viaGoogle({ cookie: session, link: true })).location, '/#/welcome?error=taken');
+});
+
+test('a player links only one Google account', async () => {
+  const session = `oc_session=${app.accounts.startSession(db.q.userByName.get('Linker').id)}`;
+  nextToken = (nonce) => idToken(claimsFor(nonce, { sub: '9009', email: 'second@gmail.com' }));
+  assert.equal((await viaGoogle({ cookie: session, link: true })).location, '/#/welcome?error=taken');
 });
 
 test('ID token checks: issuer, audience, expiry, nonce, algorithm', () => {

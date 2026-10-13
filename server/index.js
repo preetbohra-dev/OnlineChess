@@ -11,8 +11,7 @@ import { appLinkFiles } from './app-links.js';
 import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth } from './google-auth.js';
-import { sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
-import { createApi } from './api.js';
+import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
 import { startReminders } from './push.js';
@@ -135,11 +134,18 @@ export function createAppServer({
       if (!googleStarts.take(addressKey(clientAddress(req)))) return redirect(res, '/#/welcome?error=busy');
       const query = new URL(req.url, 'http://x').searchParams;
       const token = readCookie(req, SESSION_COOKIE);
-      const linkUserId = query.get('link') === '1' && token ? accounts.userForToken(token)?.id ?? null : null;
-      const { location, state } = google.start({ linkUserId });
-      return redirect(res, location, [google.stateCookie(state, secure)]);
+      const sessionUser = token ? accounts.userForToken(token) : null;
+      let linkUserId = null;
+      if (query.has('link')) {
+        linkUserId = google.useLinkTicket(query.get('link'));
+        if (!linkUserId || linkUserId !== sessionUser?.id) return redirect(res, '/#/welcome?error=expired');
+      }
+      const flow = google.start({ linkUserId });
+      if (!flow) return redirect(res, '/#/welcome?error=busy');
+      return redirect(res, flow.location, [google.stateCookie(flow.state, secure)]);
     }
-    const r = await google.callback(req, new URL(req.url, 'http://x').searchParams);
+    const sessionToken = readCookie(req, SESSION_COOKIE);
+    const r = await google.callback(req, new URL(req.url, 'http://x').searchParams, sessionToken ? accounts.userForToken(sessionToken)?.id ?? null : null);
     const clear = google.clearStateCookie(secure);
     if (!r.ok) return redirect(res, `/#/welcome?error=${r.reason}`, [clear]);
     return redirect(res, r.created ? '/#/welcome?new=1' : '/#/welcome', [clear, sessionCookie(req, r.token, 30 * 86_400)]);
