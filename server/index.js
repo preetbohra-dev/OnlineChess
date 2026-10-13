@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import { createStaticHandler, SECURITY_HEADERS } from './static.js';
+import { appLinkFiles } from './app-links.js';
 import { createApi } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -95,6 +96,7 @@ export function createAppServer({
   syncRate,
   push = null, // { publicKey } when daily reminders are running
   puzzles = undefined, // the weekly challenge's puzzle library (default: WEEKLY_POOL_FILE; null: none)
+  appLinks = appLinkFiles(), // /.well-known files that let site links open the apps (server/app-links.js)
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
@@ -105,6 +107,12 @@ export function createAppServer({
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
+    // Public JSON for Android and Apple to fetch, deliberately before the API and its checks.
+    if (Object.hasOwn(appLinks, pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600', 'X-Content-Type-Options': 'nosniff' });
+      res.end(req.method === 'HEAD' ? undefined : appLinks[pathname]);
+      return;
+    }
     if (pathname.startsWith('/api/')) {
       for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
       res.setHeader('Vary', 'Origin');

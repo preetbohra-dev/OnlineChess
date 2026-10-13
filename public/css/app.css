@@ -58,9 +58,16 @@ h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0 0 .5
 .file-banner { background: var(--danger); color: #fff; padding: 10px 16px; text-align: center; font-weight: 600; }
 
 /* ------------------------------------------------------------------ top bar */
+/* Room for the phone's status bar and rounded corners inside the apps (zero on the website):
+   iOS reports env(safe-area-inset-*), Capacitor on Android sets --safe-area-inset-*. */
+:root {
+  --inset-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --inset-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+body { padding-bottom: var(--inset-bottom); }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 12px clamp(16px, 4vw, 32px);
+  padding: calc(12px + var(--inset-top)) clamp(16px, 4vw, 32px) 12px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 85%, transparent);
   backdrop-filter: blur(8px);
