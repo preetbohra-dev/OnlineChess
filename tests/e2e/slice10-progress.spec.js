@@ -9,7 +9,8 @@ const MATE_IN_ONE = encodeURIComponent('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1');
 test('a new player sees the dashboard with rank, daily puzzle and where to continue', async ({ page }) => {
   await page.goto('/#/');
   await expect(page.getByTestId('dashboard')).toBeVisible();
-  await expect(page.getByTestId('rank-name')).toHaveText('Pawn');
+  await expect(page.getByTestId('nav-rank')).toHaveText('Pawn');
+  await expect(page.getByTestId('today-cta')).toHaveAttribute('href', '#/daily');
   await expect(page.getByTestId('dash-daily')).toContainText('Daily puzzle');
   await expect(page.getByTestId('dash-streak')).toContainText('Start a streak');
   await expect(page.getByTestId('dash-continue')).toHaveAttribute('href', '#/learn/novice-board');
