@@ -20,9 +20,11 @@ const WORKER = `
 const CACHE = 'oc-' + VERSION;
 
 // Install: cache the whole app (about 4 MB) so it works offline. If any file fails, the install
-// fails as a whole (the old version stays) and the half-filled cache is dropped.
+// fails as a whole (the old version stays) and the half-filled cache is dropped. Every file is
+// fetched with cache: 'reload': the browser may still hold an older copy (the CDN in front of the
+// server tells browsers to keep files for hours), and a new version must never cache old files.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
     .catch((err) => caches.delete(CACHE).then(() => { throw err; })));
 });
 
@@ -80,6 +82,7 @@ self.addEventListener('fetch', (event) => {
 export function buildServiceWorker(publicDir) {
   const files = listFiles(publicDir);
   const hash = crypto.createHash('sha256');
+  hash.update(WORKER); // a change to the worker itself is a new version too
   for (const f of files) hash.update(f).update(fs.readFileSync(path.join(publicDir, f)));
   const version = hash.digest('hex').slice(0, 12);
   const assets = ['/', ...files.filter((f) => f !== 'index.html').map((f) => `/${f}`)];
