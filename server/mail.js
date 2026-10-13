@@ -82,6 +82,17 @@ export function confirmEmail({ code, link }) {
   };
 }
 
+// A friend challenged you while you were away from the app.
+export function challengeEmail({ fromName, timeControl, link, settingsLink }) {
+  checkLink(link);
+  checkLink(settingsLink);
+  return {
+    subject: `${fromName} challenged you to a game of chess`,
+    text: `${fromName} challenged you to a game of chess (${timeControl}) on OnlineChess.\n\nThe challenge is open for 15 minutes:\n${link}\n\nDon't want these emails? Turn them off on your Friends page: ${settingsLink}\n`,
+    html: layout(`${fromName} challenged you`, `<p>${escapeHtml(fromName)} wants to play a game of chess (${escapeHtml(timeControl)}). The challenge is open for 15 minutes.</p>${button(link, 'Answer the challenge')}<p style="color:#6b6f78;font-size:13px">Don't want these emails? <a href="${escapeHtml(settingsLink)}">Turn them off on your Friends page</a>.</p>`),
+  };
+}
+
 // The inbox limit is a cool-down (3 per 15 minutes), not a lock-out: the sign-in code and link
 // already sent keep working, and password and Google sign-in never depend on it, so nobody can
 // keep a player out by asking for emails to their address. `address` is an addressKey().

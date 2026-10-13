@@ -48,6 +48,9 @@ import { rankFor } from './core/progression.js';
 import { startNative } from './net/native.js';
 import { startLive } from './net/live.js';
 import { startChallenges } from './ui/challenges.js';
+import { loadFriends } from './store/friends.js';
+import { loadChallenges } from './store/challenges.js';
+import { currentUser } from './store/account.js';
 import { SITE } from './net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
@@ -203,6 +206,23 @@ trackWeakSpots();
 trackSync();
 startChallenges();
 startLive();
+
+// The Friends link in the top bar (signed in only), with the number of requests and challenges
+// waiting for an answer.
+async function updateFriendsLink() {
+  const link = document.querySelector('[data-testid="nav-friends"]');
+  const badge = document.querySelector('[data-testid="nav-badge"]');
+  if (!link) return;
+  link.hidden = !currentUser();
+  if (!currentUser()) return;
+  const [f, c] = await Promise.all([loadFriends(), loadChallenges()]);
+  const waiting = (f.ok ? f.json.incoming.length : 0) + (c.ok ? c.json.incoming.length : 0);
+  badge.hidden = waiting === 0;
+  badge.textContent = waiting > 9 ? '9+' : String(waiting);
+  link.setAttribute('aria-label', waiting ? `Friends: ${waiting} waiting for your answer` : 'Friends');
+}
+for (const event of ['account:change', 'live:hello', 'live:notice', 'friends:change', 'challenges:change']) bus.on(event, updateFriendsLink);
+updateFriendsLink();
 // Notices from the live channel that matter wherever the player is.
 bus.on('live:notice', (n) => {
   if (n.kind === 'friend-request') toast(`${n.from.username} wants to be your friend. Open Friends to answer.`, { timeout: 6000 });

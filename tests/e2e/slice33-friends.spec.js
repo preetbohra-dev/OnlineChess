@@ -46,11 +46,13 @@ test('live: a friend request pops up at once, and friends see each other online 
   await page2.getByTestId('friend-input').fill(anaCode);
   await page2.getByTestId('btn-add-friend').click();
 
-  // Ana did not reload: the request arrives over the live channel.
+  // Ana did not reload: the request arrives over the live channel, with a badge in the top bar.
   await expect(page.getByTestId('toast').filter({ hasText: `${ben.name} wants to be your friend` })).toBeVisible();
+  await expect(page.getByTestId('nav-badge')).toHaveText('1');
   await page.getByTestId(`accept-${ben.name}`).click();
   await expect(page.getByTestId(`presence-${ben.name}`)).toHaveText('Online');
   await expect(page2.getByTestId(`presence-${ana.name}`)).toHaveText('Online');
+  await expect(page.getByTestId('nav-badge')).toBeHidden();
 
   // Ben opens a game: Ana sees it; Ben leaves: Ana sees that too.
   await page2.goto('/#/play/local');

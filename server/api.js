@@ -92,6 +92,7 @@ export function createApi({
   onFriendEvent = null, // (route, user, otherId, result): the live channel's notices
   onPresenceChange = null, // (userId): a player showed or hid their online status
   challenges = null, // friend-challenges.js
+  onAccountDeleted = null, // (userId): tidy what lives outside the database (open challenges)
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -289,6 +290,7 @@ export function createApi({
           ? (emailAuth.proveEmail(user, body.value?.code) ? (db.q.deleteUser.run(user.id), { ok: true }) : { ok: false, status: 401, error: 'That code is wrong or has expired.' })
           : await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
         if (!result.ok) return send(res, result.status, { error: result.error });
+        onAccountDeleted?.(user.id);
         boardCache.at = 0; // the player leaves the leaderboard at once
         return signedOut(req, res);
       }
@@ -360,7 +362,8 @@ export function createApi({
       case 'GET /api/friends': {
         if (!friends) return send(res, 404, { error: 'Not found.' });
         if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
-        return send(res, 200, friends.list(user.id));
+        const settings = db.q.presenceSetting.get(user.id);
+        return send(res, 200, { ...friends.list(user.id), settings: { show: Boolean(settings.show_presence), emails: Boolean(settings.challenge_emails) } });
       }
 
       // request: ask by code or name · accept: say yes · decline / remove: forget the pair

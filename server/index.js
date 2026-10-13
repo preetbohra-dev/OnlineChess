@@ -8,7 +8,8 @@ import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { appLinkFiles } from './app-links.js';
-import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
+import { createMailer, createMailLimits, loadAuthEnv, challengeEmail } from './mail.js';
+import { TIME_CONTROLS } from '../public/js/core/clock.js';
 import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth, APP_RETURN } from './google-auth.js';
 import { createFriends } from './friends.js';
@@ -128,8 +129,23 @@ export function createAppServer({
   const friends = db ? createFriends({ db }) : null;
   const live = db ? createLive({ db, accounts, friends, ...liveTiming }) : null;
   const manager = createRoomManager(rooms);
-  const challenges = db ? createFriendChallenges({ db, friends, rooms: manager, live }) : null;
-  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, challenges, onFriendEvent: (route, user, otherId, result) => { live?.onFriendEvent(route, user, otherId, result); if (otherId && /remove|decline/.test(route)) challenges?.forget(user.id, otherId); }, onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  // A challenge to a friend who is not in the app: one email, if they have an email and want
+  // these, at most three an hour per player (on top of the sender's own limit).
+  const challengeMails = createBucketMap({ rate: 3 / 3600, burst: 3 });
+  const emailAway = (c, { fromName, toId }) => {
+    if (!mailer.enabled) return;
+    const to = db.q.userById.get(toId);
+    if (!to?.email || !db.q.presenceSetting.get(toId)?.challenge_emails || !challengeMails.take(String(toId))) return;
+    const timeControl = TIME_CONTROLS.find((t) => t.id === c.tc)?.label ?? 'No clock';
+    mailer.send({ to: to.email, ...challengeEmail({ fromName, timeControl, link: `${publicOrigin}/#/friends`, settingsLink: `${publicOrigin}/#/friends` }) }).catch(() => {});
+  };
+  const challenges = db ? createFriendChallenges({ db, friends, rooms: manager, live, onAway: emailAway }) : null;
+  // A friend action: the live channel tells the other player; unfriending withdraws open challenges.
+  const onFriendEvent = (route, user, otherId, result) => {
+    live?.onFriendEvent(route, user, otherId, result);
+    if (otherId && (route === 'POST /api/friends/remove' || route === 'POST /api/friends/decline')) challenges?.forget(user.id, otherId);
+  };
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, challenges, onFriendEvent, onAccountDeleted: (userId) => challenges?.forget(userId), onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {

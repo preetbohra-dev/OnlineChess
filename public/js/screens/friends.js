@@ -42,15 +42,23 @@ export function renderFriends(outlet) {
     const [cls, word] = s.playing ? ['playing', 'In a game'] : s.online ? ['online', 'Online'] : ['offline', 'Offline'];
     return h('span', { class: `presence ${cls}`, testid: `presence-${f.username}` }, h('span', { class: 'presence-dot', 'aria-hidden': 'true' }), word);
   }
-  function presenceToggle() {
-    const info = liveInfo();
-    if (!info) return null;
-    const box = h('input', { type: 'checkbox', testid: 'show-presence', checked: info.showPresence });
+  // The player's own settings: show my online status; email me challenges while I am away.
+  function settingBox(key, testid, label, said) {
+    const box = h('input', { type: 'checkbox', testid, checked: data.settings?.[key] ?? true });
     box.addEventListener('change', async () => {
-      const r = await setPresence({ show: box.checked });
-      if (r.ok) { info.showPresence = r.json.show; toast(r.json.show ? 'Friends can see when you are online.' : 'You now look offline to friends.'); } else { box.checked = !box.checked; toast(r.error, { kind: 'warn' }); }
+      const r = await setPresence({ [key]: box.checked });
+      if (!r.ok) { box.checked = !box.checked; toast(r.error, { kind: 'warn' }); return; }
+      data.settings = r.json;
+      const info = liveInfo();
+      if (info && key === 'show') info.showPresence = r.json.show;
+      toast(said(r.json[key]));
     });
-    return h('label', { class: 'check' }, box, ' Show friends when I am online');
+    return h('label', { class: 'check' }, box, ` ${label}`);
+  }
+  function presenceToggle() {
+    return h('div', { class: 'friend-settings' },
+      settingBox('show', 'show-presence', 'Show friends when I am online', (on) => (on ? 'Friends can see when you are online.' : 'You now look offline to friends.')),
+      settingBox('emails', 'challenge-emails', 'Email me when a friend challenges me while I am away', (on) => (on ? 'You will get an email for challenges while you are away.' : 'No more challenge emails.')));
   }
 
   function addForm() {

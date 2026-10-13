@@ -7,6 +7,7 @@ import { TIME_CONTROLS } from '../public/js/core/clock.js';
 
 export const CHALLENGE_TTL_MS = 15 * 60_000;
 export const MAX_CHALLENGES_PER_HOUR = 10;
+export const MAX_READY_GAMES = 3; // accepted games per player not yet past READY_TTL_MS (bounds reserved rooms)
 const READY_TTL_MS = 10 * 60_000; // an accepted game stays listed for the challenger this long
 const TC_IDS = new Set(TIME_CONTROLS.map((t) => t.id)); // the same choices as online rooms
 const COLORS = ['w', 'b', 'random'];
@@ -35,7 +36,9 @@ export function createFriendChallenges({ db, friends, rooms, live, onAway = null
         live?.notify(c.from, { type: 'notice', kind: 'challenge-expired', id, with: { username: nameOf(c.to), code: codeOf(c.to) } });
       } else if (c.status === 'accepted' && t - c.answered > READY_TTL_MS) challenges.delete(id);
     }
+    for (const [userId, times] of sentAt) if (!times.some((x) => t - x < 3_600_000)) sentAt.delete(userId);
   }
+  const readyFor = (userId) => [...challenges.values()].filter((c) => c.status === 'accepted' && (c.from === userId || c.to === userId)).length;
   const openBetween = (a, b) => [...challenges.values()].find((c) => c.status === 'pending' && ((c.from === a && c.to === b) || (c.from === b && c.to === a)));
   const fail = (status, error) => ({ ok: false, status, error });
 
@@ -49,6 +52,7 @@ export function createFriendChallenges({ db, friends, rooms, live, onAway = null
       const other = friends.find({ code }, userId);
       if (!other || !friends.areFriends(userId, other.id)) return fail(404, 'You can challenge your friends only.');
       if (openBetween(userId, other.id)) return fail(409, 'There is already a challenge between you two. Answer or cancel it first.');
+      if (readyFor(userId) >= MAX_READY_GAMES) return fail(429, 'You have several games waiting to be played. Play them first.');
       const recent = (sentAt.get(userId) ?? []).filter((t) => now() - t < 3_600_000);
       if (recent.length >= MAX_CHALLENGES_PER_HOUR) return fail(429, 'That is a lot of challenges for one hour. Try again later.');
       sentAt.set(userId, [...recent, now()]);
@@ -83,7 +87,12 @@ export function createFriendChallenges({ db, friends, rooms, live, onAway = null
         live?.notify(c.from, { type: 'notice', kind: 'challenge-declined', id: c.id, with: { username: nameOf(c.to), code: codeOf(c.to) } });
         return { ok: true };
       }
-      if (!friends.areFriends(c.from, c.to)) { challenges.delete(c.id); return fail(404, 'You are no longer friends.'); }
+      if (!friends.areFriends(c.from, c.to)) {
+        challenges.delete(c.id);
+        live?.notify(c.from, { type: 'notice', kind: 'challenge-cancelled', id: c.id });
+        return fail(404, 'You are no longer friends.');
+      }
+      if (readyFor(c.to) >= MAX_READY_GAMES) return fail(429, 'You have several games waiting to be played. Play them first.');
       const fromColor = c.color === 'random' ? (crypto.randomInt(2) ? 'w' : 'b') : c.color;
       const toColor = fromColor === 'w' ? 'b' : 'w';
       const names = { [fromColor]: nameOf(c.from), [toColor]: nameOf(c.to) };
@@ -109,9 +118,16 @@ export function createFriendChallenges({ db, friends, rooms, live, onAway = null
       return { ok: true };
     },
 
-    // Friends removed or an account deleted: their open challenges go.
+    // Friends removed (b given) or an account deleted (b omitted): open challenges go, with a word
+    // to the other player. Accepted games stay listed: their room still exists.
     forget(a, b) {
-      for (const [id, c] of challenges) if ((c.from === a && (b == null || c.to === b)) || (c.to === a && (b == null || c.from === b))) challenges.delete(id);
+      for (const [id, c] of challenges) {
+        const involved = (c.from === a && (b == null || c.to === b)) || (c.to === a && (b == null || c.from === b));
+        if (!involved || c.status !== 'pending') continue;
+        challenges.delete(id);
+        const other = c.from === a ? c.to : c.from;
+        live?.notify(other, { type: 'notice', kind: 'challenge-cancelled', id });
+      }
     },
   };
 }

@@ -39,14 +39,19 @@ export function openChallengeDialog(friend) {
   });
 }
 
+const shown = new Map(); // challenge id -> open dialog (never two for the same challenge)
+const onGameScreen = () => /^#\/(play\/(local|bot|online)|room|train\/coach\/play)/.test(location.hash);
+
 // Someone challenged you.
 export function showIncoming(challenge) {
   const { with: from, tc, color, id } = challenge;
+  if (shown.has(id)) return;
   const mine = color === 'random' ? 'random' : color === 'w' ? 'b' : 'w';
-  openModal({
+  const dialog = openModal({
     title: `${from.username} challenges you`,
     testid: 'incoming-challenge',
     keepOnRoute: true, // stays while the player moves around, until answered
+    onClose: () => shown.delete(id),
     body: [h('p', {}, `${tcLabel(tc)} · ${colorText(mine, true)}.`)],
     actions: [
       { label: 'Not now', testid: 'btn-decline-challenge', onClick: () => answerChallenge(id, false).then(() => bus.emit('challenges:change', {})) },
@@ -59,6 +64,24 @@ export function showIncoming(challenge) {
         },
       },
     ],
+  });
+  shown.set(id, dialog);
+}
+
+// A challenge that is no longer open: close its dialog if it is showing.
+function closeIncoming(id) {
+  shown.get(id)?.close('gone');
+  shown.delete(id);
+}
+
+// A game is ready: straight in, unless the player is in another game (then they are asked).
+function gameReady(challenge) {
+  if (!onGameScreen()) { toast(`Game on with ${challenge.with.username}!`); openGame(challenge); return; }
+  openModal({
+    title: `${challenge.with.username}'s game is ready`,
+    testid: 'game-ready',
+    body: [h('p', {}, 'Leave this game and start that one?')],
+    actions: [{ label: 'Later', testid: 'btn-later' }, { label: 'Play now', testid: 'btn-play-now', primary: true, onClick: () => openGame(challenge) }],
   });
 }
 
@@ -75,10 +98,10 @@ export function startChallenges() {
   bus.on('live:notice', (n) => {
     if (n.kind === 'challenge') showIncoming(n.challenge);
     else if (n.kind === 'game-ready') {
-      if (!hasSeat(n.challenge.game.room)) { toast(`Game on with ${n.challenge.with.username}!`); openGame(n.challenge); }
+      if (!hasSeat(n.challenge.game.room)) gameReady(n.challenge);
     } else if (n.kind === 'challenge-declined') toast(`${n.with.username} can't play right now.`);
     else if (n.kind === 'challenge-expired') toast(`Your challenge to ${n.with.username} expired.`);
-    else if (n.kind === 'challenge-cancelled') toast('A challenge was withdrawn.');
+    else if (n.kind === 'challenge-cancelled') { closeIncoming(n.id); toast('A challenge was withdrawn.'); }
     if (n.kind.startsWith('challenge') || n.kind === 'game-ready') bus.emit('challenges:change', {});
   });
   bus.on('live:hello', async () => {

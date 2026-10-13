@@ -614,3 +614,5 @@ a.btn { text-decoration: none; }
 .presence-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
 .presence.online .presence-dot { background: #2fb36b; }
 .presence.playing .presence-dot { background: #e0a526; }
+.nav-friends { position: relative; display: inline-flex; align-items: center; text-decoration: none; font-size: 1.1rem; padding: 4px 6px; }
+.nav-badge { position: absolute; top: -2px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #d9493a; color: #fff; font: 700 .7rem/16px system-ui, sans-serif; text-align: center; }

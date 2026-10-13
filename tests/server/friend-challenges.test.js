@@ -131,3 +131,60 @@ test('removing a friend withdraws open challenges', async () => {
   await call('POST', '/api/friends/remove', { cookie: gus.cookie, body: { code: fay.code } });
   assert.deepEqual((await call('GET', '/api/challenges', { cookie: gus.cookie })).json.incoming, []);
 });
+
+test('a challenge to a friend who is away is emailed (once they have an email and want it)', async () => {
+  const { createMailer } = await import('../../server/mail.js');
+  const mdb = openDatabase(':memory:');
+  const mailer = createMailer({ mode: 'dry' });
+  const mapp = createAppServer({ usernameSignup: true, db: mdb, mailer, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, publicOrigin: 'https://chess.example' });
+  await new Promise((r) => mapp.http.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${mapp.http.address().port}`;
+  const req = async (path, body, cookie) => (await fetch(url + path, { method: body ? 'POST' : 'GET', headers: { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined })).json();
+  const reg = async (name) => {
+    const r = await fetch(`${url}/api/register`, { method: 'POST', headers: { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: name, password: 'correct horse battery' }) });
+    const cookie = r.headers.get('set-cookie').split(';')[0];
+    return { cookie, code: (await req('/api/friends', null, cookie)).code };
+  };
+  try {
+    const ann = await reg('mailann');
+    const bob = await reg('mailbob');
+    await req('/api/friends/request', { code: bob.code }, ann.cookie);
+    await req('/api/friends/accept', { code: ann.code }, bob.cookie);
+    mdb.q.setEmail.run('bob@example.com', Date.now(), mdb.q.userByName.get('mailbob').id);
+    await req('/api/challenges', { code: bob.code, tc: '5+0' }, ann.cookie);
+    await new Promise((r) => setImmediate(r));
+    const mail = mailer.outbox.at(-1);
+    assert.equal(mail.to, 'bob@example.com');
+    assert.equal(mail.subject, 'mailann challenged you to a game of chess');
+    assert.match(mail.text, /5 min/);
+    assert.match(mail.text, /https:\/\/chess\.example\/#\/friends/);
+
+    // Bob turns these emails off: no more.
+    await req('/api/account/presence', { emails: false }, bob.cookie);
+    const ch = await req('/api/challenges', null, bob.cookie);
+    await req('/api/challenges/answer', { id: ch.incoming[0].id, accept: false }, bob.cookie);
+    await req('/api/challenges', { code: bob.code }, ann.cookie);
+    await new Promise((r) => setImmediate(r));
+    assert.equal(mailer.outbox.length, 1);
+  } finally {
+    await mapp.close();
+  }
+});
+
+test('at most three accepted games waiting per player; deleting an account withdraws its challenges', async () => {
+  const hub = await player('chhub');
+  const pals = [];
+  for (let i = 0; i < 4; i++) { const p = await player(`chpal${i}`); await befriend(hub, p); pals.push(p); }
+  for (const p of pals.slice(0, 3)) {
+    const c = (await call('POST', '/api/challenges', { cookie: hub.cookie, body: { code: p.code } })).json.challenge;
+    assert.equal((await call('POST', '/api/challenges/answer', { cookie: p.cookie, body: { id: c.id, accept: true } })).status, 200);
+  }
+  assert.equal((await call('POST', '/api/challenges', { cookie: hub.cookie, body: { code: pals[3].code } })).status, 429);
+
+  const leaver = await player('chleaver');
+  const stayer = await player('chstayer');
+  await befriend(leaver, stayer);
+  await call('POST', '/api/challenges', { cookie: leaver.cookie, body: { code: stayer.code } });
+  assert.equal((await call('POST', '/api/account/delete', { cookie: leaver.cookie, body: { password: PW } })).status, 200);
+  assert.deepEqual((await call('GET', '/api/challenges', { cookie: stayer.cookie })).json.incoming, []);
+});

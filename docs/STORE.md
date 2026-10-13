@@ -62,8 +62,8 @@ Everything Play Console asks for, ready to paste. Images are in `store/play/` (r
 - **App access:** All functionality is available without special access. (Accounts are optional;
   anyone can create one in the app with an email or a Google account; no invitation or payment.)
 - **Content rating (IARC questionnaire):** category *Game*, board/puzzle. No violence, fear, sex,
-  language, drugs, gambling. *Users can interact or exchange content:* Yes (online games with
-  friends by link, usernames on a leaderboard; no chat). *Shares location:* No. *Digital
+  language, drugs, gambling. *Users can interact or exchange content:* Yes (friends, challenges and
+  online games between friends, usernames on a leaderboard; no chat). *Shares location:* No. *Digital
   purchases:* No. Expected rating: Everyone / PEGI 3.
 - **Target audience:** 13 and over (the app is not designed for children; accounts are not meant
   for under-13s without a parent, as the privacy policy says).
@@ -87,6 +87,7 @@ sharing.)
 | Personal info → User IDs | The public name, and Google's account identifier for Google sign-in |
 | App activity → Other user-generated content | Weekly challenge answers and results; reports of usernames |
 | App activity → In-app actions | Synced progress: XP, ratings, saved games (moves), lessons, achievements |
+| Social → Other in-app messages (Play may file it under "Other user-generated content") | Friend lists, friend requests and challenges between friends; online status shown to friends (can be turned off) |
 
 Not collected: real name, phone, location, contacts, photos, files, device IDs, payment info,
 health, messages, web browsing, crash logs, diagnostics. IP addresses are used only in memory to
