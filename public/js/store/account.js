@@ -74,7 +74,6 @@ async function signIn(path, body, store) {
 
 // `username` may be the account's email.
 export const login = (username, password, store = appStore()) => signIn('/api/login', { username, password }, store);
-export const register = (username, password, store = appStore()) => signIn('/api/register', { username, password }, store);
 
 // Email accounts. Sign-up and code requests always answer "check your email".
 export const signUpWithEmail = (email, username) => ask('POST', '/api/signup', { email, username });

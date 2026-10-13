@@ -77,7 +77,11 @@ export function startNative({ site, isDark = darkTheme } = {}) {
     else App.exitApp();
   });
   App?.addListener('appUrlOpen', ({ url }) => {
-    if (url.startsWith(`${APP_RETURN}?`)) return finishGoogle(url);
+    if (url.startsWith(`${APP_RETURN}?`)) {
+      // Any app could open this address; only a well-formed code ends a sign-in under way.
+      if (/^[\w-]{43}$/.test(new URL(url).searchParams.get('code') ?? '')) finishGoogle(url);
+      return;
+    }
     const route = routeForLink(url, site);
     if (route) location.hash = route;
   });

@@ -87,6 +87,7 @@ export function createApi({
   puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
   emailAuth = null, // email sign-up and sign-in (email-auth.js), when email is set up
   google = null, // "Continue with Google" (google-auth.js), when its keys are set up
+  usernameSignup = false, // POST /api/register still makes username accounts (tests only)
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -143,6 +144,9 @@ export function createApi({
         return send(res, 200, { user: user ? { username: user.username } : null });
 
       case 'POST /api/register':
+        // New accounts sign up with an email or Google; existing username accounts still sign in.
+        if (!usernameSignup) return send(res, 410, { error: 'Sign up with your email or with Google.' });
+      // falls through
       case 'POST /api/login': {
         if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
         if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });

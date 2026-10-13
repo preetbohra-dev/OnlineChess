@@ -20,9 +20,10 @@ const FLOW_TTL_MS = 10 * 60_000;
 const MAX_FLOWS = 5_000;
 const STATE_COOKIE = 'oc_google';
 const TIMEOUT_MS = 10_000;
-const MIN_REFETCH_MS = 60_000;
+const MIN_REFETCH_MS = 60_000; // forced key refreshes (after an unknown key) at most this often
 const APP_CODE_TTL_MS = 2 * 60_000;
-export const APP_RETURN = 'com.solankidigitaldrafts.chess://auth'; // the apps' link scheme (AndroidManifest, Info.plist) // forced key refreshes (after an unknown key) at most this often
+// The apps' own link scheme (AndroidManifest.xml, Info.plist, public/js/net/native.js).
+export const APP_RETURN = 'com.solankidigitaldrafts.chess://auth';
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 const random = (n = 32) => b64url(crypto.randomBytes(n));

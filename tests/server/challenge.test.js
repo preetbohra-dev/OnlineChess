@@ -68,7 +68,7 @@ test('the public view never contains the answer of an unanswered puzzle', () => 
 test('API: week-checked answers, one attempt each, started and timed games, a leaderboard by score then speed', async () => {
   let clock = Date.UTC(2026, 9, 7, 12);
   const db = openDatabase(':memory:');
-  const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
+  const app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${app.http.address().port}`;
@@ -128,7 +128,7 @@ test('the live pool is read from outside the repository', () => {
 test('a week keeps the puzzles it started with, even if the pool changes', async () => {
   const db = openDatabase(':memory:');
   const listen = async (puzzles) => {
-    const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, puzzles });
+    const app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, puzzles });
     await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
     return app;
   };
@@ -158,7 +158,7 @@ test('a week keeps the puzzles it started with, even if the pool changes', async
 });
 
 test('without a pool the challenge is unavailable and the rest of the API works', async () => {
-  const app = createAppServer({ db: openDatabase(':memory:'), puzzles: null });
+  const app = createAppServer({ usernameSignup: true, db: openDatabase(':memory:'), puzzles: null });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${app.http.address().port}`;
@@ -188,7 +188,7 @@ test('admin fix-week stores this week once from the given pool', () => {
 
 test('players can report a username; three different reporters hide it from the leaderboard', async () => {
   const db = openDatabase(':memory:');
-  const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
+  const app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${app.http.address().port}`;
@@ -226,7 +226,7 @@ test('players can report a username; three different reporters hide it from the 
 
 test('one account can report at most ten players a day', async () => {
   const db = openDatabase(':memory:');
-  const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
+  const app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${app.http.address().port}`;

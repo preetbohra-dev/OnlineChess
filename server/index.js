@@ -104,6 +104,7 @@ export function createAppServer({
   mailer = createMailer({ apiKey: loadAuthEnv().RESEND_API_KEY ?? '' }),
   publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
   mailLimits = createMailLimits(),
+  usernameSignup = false, // the old username + password sign-up (tests only; players sign up with email or Google)
   // "Continue with Google" (server/google-auth.js): on when the client id and secret are set.
   googleKeys = (({ GOOGLE_CLIENT_ID: id, GOOGLE_CLIENT_SECRET: secret }) => (id && secret ? { clientId: id, clientSecret: secret } : null))(loadAuthEnv()),
   googleFetch = globalThis.fetch, // tests replace Google's endpoints
@@ -120,7 +121,7 @@ export function createAppServer({
   const outbox = testHooks && process.env.MAIL === 'dry' && inMemory ? mailer.outbox : null;
   const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
   const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
-  const api = createApi({ db, accounts, emailAuth, outbox, google, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {
@@ -141,7 +142,7 @@ export function createAppServer({
         if (!linkUserId || linkUserId !== sessionUser?.id) return redirect(res, '/#/welcome?error=expired');
       }
       const appChallenge = query.get('app'); // started by an app (its PKCE challenge)
-      if (appChallenge !== null && !/^[\w-]{43}$/.test(appChallenge)) return redirect(res, '/#/welcome?error=bad');
+      if (appChallenge !== null && (!/^[\w-]{43}$/.test(appChallenge) || linkUserId)) return redirect(res, '/#/welcome?error=bad'); // "Connect Google" is website only
       const flow = google.start({ linkUserId, appChallenge });
       if (!flow) return redirect(res, '/#/welcome?error=busy');
       return redirect(res, flow.location, [google.stateCookie(flow.state, secure)]);

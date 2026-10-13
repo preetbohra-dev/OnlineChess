@@ -10,7 +10,7 @@ let app, base, db, mailer;
 test.before(async () => {
   db = openDatabase(':memory:');
   mailer = createMailer({ mode: 'dry' });
-  app = createAppServer({ db, mailer, mailLimits: createMailLimits({ perInbox: 100, perAddress: 1000 }), publicOrigin: 'https://chess.example', authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
+  app = createAppServer({ usernameSignup: true, db, mailer, mailLimits: createMailLimits({ perInbox: 100, perAddress: 1000 }), publicOrigin: 'https://chess.example', authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${app.http.address().port}`;
 });
@@ -174,7 +174,7 @@ test('suggested names are allowed, free and plain', () => {
 });
 
 test('the inbox cool-down: the fourth email in a few minutes is not sent, the earlier code still works', async () => {
-  const limited = createAppServer({ db: openDatabase(':memory:'), mailer: createMailer({ mode: 'dry' }), authRate: { rate: 1000, burst: 1000 } });
+  const limited = createAppServer({ usernameSignup: true, db: openDatabase(':memory:'), mailer: createMailer({ mode: 'dry' }), authRate: { rate: 1000, burst: 1000 } });
   await new Promise((r) => limited.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${limited.http.address().port}`;
@@ -190,7 +190,7 @@ test('the inbox cool-down: the fourth email in a few minutes is not sent, the ea
 });
 
 test('without email set up the routes say so', async () => {
-  const off = createAppServer({ db: openDatabase(':memory:'), mailer: createMailer({ mode: 'off' }) });
+  const off = createAppServer({ usernameSignup: true, db: openDatabase(':memory:'), mailer: createMailer({ mode: 'off' }) });
   await new Promise((r) => off.http.listen(0, '127.0.0.1', r));
   try {
     const url = `http://127.0.0.1:${off.http.address().port}`;

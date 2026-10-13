@@ -59,8 +59,8 @@ Everything Play Console asks for, ready to paste. Images are in `store/play/` (r
 
 - **Privacy policy:** the URL above.
 - **Ads:** No, the app does not contain ads.
-- **App access:** All functionality is available without special access. (Accounts are optional
-  and anyone can create one in the app; no invitation or payment.)
+- **App access:** All functionality is available without special access. (Accounts are optional;
+  anyone can create one in the app with an email or a Google account; no invitation or payment.)
 - **Content rating (IARC questionnaire):** category *Game*, board/puzzle. No violence, fear, sex,
   language, drugs, gambling. *Users can interact or exchange content:* Yes (online games with
   friends by link, usernames on a leaderboard; no chat). *Shares location:* No. *Digital
@@ -77,15 +77,18 @@ Does the app collect or share user data? **Yes, collects; does not share.** All 
 in transit (HTTPS). Users can request deletion (in the app, or by email).
 
 Collected only when the player creates an account (optional), for **App functionality** and
-**Account management**, not shared, not used for ads or analytics:
+**Account management**, not shared, not used for ads or analytics. (Resend delivers our emails and
+Google runs Google sign-in; Play counts these service providers as processing on our behalf, not as
+sharing.)
 
 | Data type (Play's names) | What it is |
 |---|---|
-| Personal info → User IDs | The username |
+| Personal info → Email address | The account's email (confirmed by code), for sign-in emails only |
+| Personal info → User IDs | The public name, and Google's account identifier for Google sign-in |
 | App activity → Other user-generated content | Weekly challenge answers and results; reports of usernames |
 | App activity → In-app actions | Synced progress: XP, ratings, saved games (moves), lessons, achievements |
 
-Not collected: name, email, phone, location, contacts, photos, files, device IDs, payment info,
+Not collected: real name, phone, location, contacts, photos, files, device IDs, payment info,
 health, messages, web browsing, crash logs, diagnostics. IP addresses are used only in memory to
 limit abuse and are not stored.
 
