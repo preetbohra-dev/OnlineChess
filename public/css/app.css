@@ -602,3 +602,11 @@ a.btn { text-decoration: none; }
 .quest-check.done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .player-material:empty { display: none; }
 .player-material:has(.captured:empty):has(.material-adv:empty) { display: none; }
+
+/* ------------------------------------------------------------------ friends */
+.friend-list { list-style: none; padding: 0; margin: 0; }
+.friend-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.friend-row:last-child { border-bottom: 0; }
+.friend-name { display: flex; flex-direction: column; min-width: 0; }
+.friend-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.friend-code { display: flex; align-items: center; gap: 12px; font-size: 1.4rem; letter-spacing: .06em; margin: 4px 0; }

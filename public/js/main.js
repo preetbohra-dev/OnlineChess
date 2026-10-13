@@ -24,6 +24,7 @@ import { renderLearnHub, renderLesson, renderDaily } from './screens/learn.js';
 import { renderProfile } from './screens/profile.js';
 import { renderAuthLink } from './screens/auth-link.js';
 import { renderWelcome } from './screens/welcome.js';
+import { renderFriends } from './screens/friends.js';
 import { renderGames, renderReview } from './screens/review.js';
 import { renderPuzzles, renderRush } from './screens/puzzles.js';
 import { renderCampaign } from './screens/campaign.js';
@@ -224,6 +225,7 @@ startRouter(document.getElementById('app'), [
   { pattern: /^\/profile$/, title: 'Profile', render: renderProfile },
   { pattern: /^\/auth$/, title: 'Sign in', render: renderAuthLink },
   { pattern: /^\/welcome$/, title: 'Signing in', render: renderWelcome },
+  { pattern: /^\/friends$/, title: 'Friends', render: renderFriends },
   { pattern: /^\/games$/, title: 'Your games', render: renderGames },
   { pattern: /^\/puzzles$/, title: 'Puzzles', render: renderPuzzles },
   { pattern: /^\/campaign$/, title: 'Campaign', render: renderCampaign },

@@ -88,6 +88,7 @@ export function createApi({
   emailAuth = null, // email sign-up and sign-in (email-auth.js), when email is set up
   google = null, // "Continue with Google" (google-auth.js), when its keys are set up
   usernameSignup = false, // POST /api/register still makes username accounts (tests only)
+  friends = null, // friends.js
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -336,6 +337,28 @@ export function createApi({
         const row = db.q.userById.get(r.userId);
         boardCache.at = 0;
         return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
+      }
+
+      case 'GET /api/friends': {
+        if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
+        return send(res, 200, friends.list(user.id));
+      }
+
+      case 'POST /api/friends/request':
+      case 'POST /api/friends/accept':
+      case 'POST /api/friends/decline':
+      case 'POST /api/friends/remove': {
+        if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
+        if (!syncBuckets.take(`f${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const action = route.split('/').pop();
+        const r = action === 'request' ? friends.request(user.id, body.value)
+          : action === 'accept' ? friends.accept(user.id, body.value)
+            : friends.remove(user.id, body.value);
+        if (!r.ok) return send(res, r.status, { error: r.error });
+        const { ok, ...rest } = r;
+        return send(res, 200, rest);
       }
 
       // Which ways of signing in this server offers (the page shows only those).

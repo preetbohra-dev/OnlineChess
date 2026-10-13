@@ -11,6 +11,7 @@ import { appLinkFiles } from './app-links.js';
 import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth, APP_RETURN } from './google-auth.js';
+import { createFriends } from './friends.js';
 import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -121,7 +122,8 @@ export function createAppServer({
   const outbox = testHooks && process.env.MAIL === 'dry' && inMemory ? mailer.outbox : null;
   const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
   const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
-  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const friends = db ? createFriends({ db }) : null;
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {
