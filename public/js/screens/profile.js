@@ -8,7 +8,7 @@ import { ALL_LESSONS } from '../data/lessons/index.js';
 import { completedLessons } from '../store/progress.js';
 import { totalStars } from '../core/campaign.js';
 import { questView } from '../core/quests.js';
-import { dueToday } from '../store/weakspots.js';
+import { dueToday, loadDeck } from '../store/weakspots.js';
 import { canInstall, install } from '../ui/pwa.js';
 import { currentUser, lastSynced, login, register, logout, syncNow } from '../store/account.js';
 import { bus } from '../core/events.js';
@@ -39,7 +39,7 @@ function remindersSection() {
   }
   function render() {
     fill(section,
-      h('h2', { id: 'reminders-heading' }, 'Daily reminder'),
+      h('h2', { class: 'section-label', id: 'reminders-heading' }, 'Daily reminder'),
       !pushSupported()
         ? h('p', { class: 'muted' }, 'This browser cannot show reminders. On iPhone, add the app to your home screen first.')
         : [h('p', { class: 'muted' }, 'One notification a day, at the hour you choose, only if today\'s puzzle is still unsolved.'),
@@ -93,7 +93,7 @@ function accountSection() {
     const user = currentUser();
     const synced = lastSynced();
     fill(section,
-      h('h2', { id: 'account-heading' }, 'Account'),
+      h('h2', { class: 'section-label', id: 'account-heading' }, 'Account'),
       user
         ? [h('p', { testid: 'account-user' }, 'Signed in as ', h('strong', {}, user.username), '. Your progress syncs to every device you sign in on.'),
           h('p', { class: 'muted small', testid: 'account-synced' }, synced ? `Last synced ${synced.toLocaleTimeString()}.` : 'Syncing…'),
@@ -110,7 +110,7 @@ function accountSection() {
 // This week's quests, with progress bars.
 function questList(profile) {
   return h('ul', { class: 'quest-list', testid: 'quests' }, questView(profile.quests).map((q) => h('li', { class: `quest${q.done ? ' done' : ''}`, testid: `quest-${q.id}`, dataset: { done: String(q.done) } },
-    h('span', { class: 'quest-text' }, h('span', { 'aria-hidden': 'true' }, q.done ? '✅ ' : '◻️ '), q.text, q.done ? h('span', { class: 'sr-only' }, ' (done)') : null),
+    h('span', { class: 'quest-text' }, h('span', { class: `quest-check${q.done ? ' done' : ''}`, 'aria-hidden': 'true' }, q.done ? '✓' : ''), q.text, q.done ? h('span', { class: 'sr-only' }, ' (done)') : null),
     h('span', { class: 'muted quest-count' }, `${q.progress}/${q.target}`),
     h('div', { class: 'xp-bar', role: 'progressbar', 'aria-label': q.text, 'aria-valuemin': 0, 'aria-valuemax': q.target, 'aria-valuenow': q.progress, 'aria-valuetext': `${q.progress} of ${q.target}` },
       h('span', { style: `width: ${Math.round((q.progress / q.target) * 100)}%` })))));
@@ -130,58 +130,38 @@ function rankBlock(profile) {
       }, h('span', { style: `width: ${Math.round(rank.progress * 100)}%` }))));
 }
 
-// Home-page dashboard: rank, today's puzzle, where to continue, and the record so far.
-export function dashboard() {
+// The home page's "Today" panel: the daily puzzle and streak, this week's quests, weak spots due,
+// one clear next step, and a few shortcuts to carry on where you left off.
+export function today() {
   const profile = loadProfile();
-  const today = dayKey();
-  const solved = profile.daily.last === today;
-  const streak = currentStreak(profile, today);
+  const day = dayKey();
+  const solved = profile.daily.last === day;
+  const streak = currentStreak(profile, day);
   const done = completedLessons();
   const nextLesson = ALL_LESSONS.find((l) => !done.has(l.id));
-  const unlocked = ACHIEVEMENTS.filter((a) => profile.achievements[a.id]).length;
-  const g = profile.games;
   const puzzles = loadPuzzleStats();
+  const deck = loadDeck();
   const weak = dueToday().length;
-  return h('section', { class: 'dashboard', testid: 'dashboard', 'aria-label': 'Your progress' },
-    h('a', { class: 'dash-card dash-rank', href: '#/profile', testid: 'dash-profile' },
-      rankBlock(profile),
-      h('span', { class: 'muted' }, `🏅 ${unlocked}/${ACHIEVEMENTS.length} achievements · ${g.won}W ${g.drawn}D ${g.lost}L`)),
-    canInstall() ? h('button', { class: 'dash-card dash-install', type: 'button', testid: 'dash-install', onClick: () => install() },
-      h('span', { class: 'dash-eyebrow' }, 'Install the app'),
-      h('strong', {}, '📲 Add OnlineChess to your device'),
-      h('span', { class: 'muted' }, 'One tap to open, and it works offline')) : null,
-    h('section', { class: 'dash-card dash-quests', testid: 'dash-quests', 'aria-label': 'Weekly quests' },
-      h('span', { class: 'dash-eyebrow' }, `Weekly quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
-      questList(profile),
-      h('span', { class: 'muted small' }, 'Finish all three for a streak freeze. New quests every Monday.')),
-    h('a', { class: `dash-card dash-daily${solved ? ' done' : ''}`, href: '#/daily', testid: 'dash-daily' },
-      h('span', { class: 'dash-eyebrow' }, 'Daily puzzle'),
-      h('strong', {}, solved ? 'Solved today ✓' : 'A new puzzle is waiting'),
-      h('span', { class: 'muted', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
-    h('a', { class: 'dash-card', href: '#/weekly', testid: 'dash-weekly' },
-      h('span', { class: 'dash-eyebrow' }, 'Weekly challenge'),
-      h('strong', {}, 'This week\'s challenge'),
-      h('span', { class: 'muted' }, 'Ten puzzles, three games, one leaderboard')),
-    h('a', { class: 'dash-card', href: '#/weak-spots', testid: 'dash-weakspots' },
-      h('span', { class: 'dash-eyebrow' }, 'Weak spots'),
-      h('strong', {}, weak ? `${weak} to practise today` : 'Nothing due today'),
-      h('span', { class: 'muted' }, 'Your own mistakes, back as puzzles')),
-    h('a', { class: 'dash-card', href: '#/campaign', testid: 'dash-campaign' },
-      h('span', { class: 'dash-eyebrow' }, 'Campaign'),
-      h('strong', {}, `${totalStars(profile.campaign)}/15 ★`),
-      h('span', { class: 'muted' }, 'Beat the opponents in order, collect stars')),
-    h('a', { class: 'dash-card', href: '#/puzzles', testid: 'dash-puzzles' },
-      h('span', { class: 'dash-eyebrow' }, 'Puzzles'),
-      h('strong', {}, `Puzzle rating ${puzzles.rating}`),
-      h('span', { class: 'muted' }, puzzles.rushBest ? `Rush best: ${puzzles.rushBest}` : 'Try Puzzle Rush: 3 minutes, 3 strikes')),
-    h('a', { class: 'dash-card', href: '#/games', testid: 'dash-games' },
-      h('span', { class: 'dash-eyebrow' }, 'Your games'),
-      h('strong', {}, 'Review your games'),
-      h('span', { class: 'muted' }, 'See your accuracy, key moments and better moves')),
-    nextLesson ? h('a', { class: 'dash-card', href: `#/learn/${nextLesson.id}`, testid: 'dash-continue' },
-      h('span', { class: 'dash-eyebrow' }, 'Continue learning'),
-      h('strong', {}, nextLesson.title),
-      h('span', { class: 'muted' }, `${done.size}/${ALL_LESSONS.length} lessons done`)) : null);
+  const freezes = `🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`;
+  return h('section', { class: 'today', testid: 'dashboard', 'aria-labelledby': 'today-heading' },
+    h('div', { class: 'today-panel' },
+      h('h2', { class: 'section-label', id: 'today-heading' }, 'Today'),
+      h('a', { class: `today-row${solved ? ' done' : ''}`, href: '#/daily', testid: 'dash-daily' },
+        h('span', { class: 'today-icon', 'aria-hidden': 'true' }, solved ? '✓' : '🧩'),
+        h('span', { class: 'today-main' }, h('strong', {}, 'Daily puzzle'), h('span', { class: 'muted' }, solved ? 'Solved today' : 'A new puzzle is waiting')),
+        h('span', { class: 'today-side', testid: 'dash-streak' }, streak ? `🔥 ${streak}-day streak` : 'Start a streak today')),
+      deck.length ? h('a', { class: 'today-row', href: '#/weak-spots', testid: 'dash-weakspots' },
+        h('span', { class: 'today-icon', 'aria-hidden': 'true' }, '🎯'),
+        h('span', { class: 'today-main' }, h('strong', {}, 'Weak spots'), h('span', { class: 'muted' }, weak ? `${weak} to practise today` : 'Nothing due today'))) : null,
+      h('div', { class: 'today-quests', testid: 'dash-quests' },
+        h('div', { class: 'today-quests-head' }, h('strong', {}, 'Weekly quests'), h('span', { class: 'muted small' }, freezes)),
+        questList(profile)),
+      h('a', { class: 'btn btn-primary today-cta', href: solved ? '#/rush' : '#/daily', testid: 'today-cta' }, solved ? 'Try Puzzle Rush →' : 'Solve today\'s puzzle →')),
+    h('nav', { class: 'shortcuts', 'aria-label': 'Carry on' },
+      nextLesson ? h('a', { class: 'chip', href: `#/learn/${nextLesson.id}`, testid: 'dash-continue' }, `📚 ${nextLesson.title}`) : null,
+      h('a', { class: 'chip', href: '#/puzzles', testid: 'dash-puzzles' }, `🧩 Puzzles · ${puzzles.rating}`),
+      h('a', { class: 'chip', href: '#/weekly', testid: 'dash-weekly' }, '🏆 Weekly challenge'),
+      canInstall() ? h('button', { class: 'chip', type: 'button', testid: 'dash-install', onClick: () => install() }, '📲 Install the app') : null));
 }
 
 export function renderProfile(outlet) {
@@ -206,40 +186,53 @@ function draw(outlet, redraw) {
   const account = accountSection();
   const g = profile.games;
   const record = (r) => (r ? `${r.w}W ${r.d}D ${r.l}L` : '—');
+  const unlocked = ACHIEVEMENTS.filter((a) => profile.achievements[a.id]);
+  const locked = ACHIEVEMENTS.filter((a) => !profile.achievements[a.id]);
+  const achievement = (a) => {
+    const at = profile.achievements[a.id];
+    return h('li', { class: `achievement${at ? ' unlocked' : ''}`, testid: `ach-${a.id}`, dataset: { unlocked: String(Boolean(at)) } },
+      h('span', { class: 'ach-icon', 'aria-hidden': 'true' }, at ? a.icon : '🔒'),
+      h('span', {}, h('strong', {}, a.title), h('span', { class: 'muted' }, a.text),
+        h('span', { class: 'sr-only' }, at ? ' (unlocked)' : ' (locked)')));
+  };
+  const stat = (label, value) => h('div', { class: 'stat' }, h('strong', {}, String(value)), h('span', { class: 'muted' }, label));
   const page = h('div', { class: 'page menu profile', testid: 'profile' },
     h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Profile'),
     h('h1', { tabindex: -1, testid: 'profile-title' }, 'Your profile'),
-    account.el,
-    currentUser() ? remindersSection() : null,
-    h('section', { class: 'menu-section' }, rankBlock(profile),
-      h('p', { class: 'muted' }, `Games: ${g.played} · Won ${g.won} · Drawn ${g.drawn} · Lost ${g.lost} · Checkmates ${g.mates}`),
-      h('p', { class: 'muted' }, `Daily puzzle: best streak ${profile.daily.best}, solved ${profile.daily.solved} · Lessons ${profile.lessons} · Openings ${profile.openings} · Coached games ${profile.training.games} (best accuracy ${profile.training.bestAccuracy}%)`)),
+    h('section', { class: 'menu-section profile-overview' },
+      rankBlock(profile),
+      h('div', { class: 'stats' },
+        stat('games', g.played),
+        stat('wins', g.won),
+        stat('puzzle rating', loadPuzzleStats().rating),
+        stat('best daily streak', profile.daily.best),
+        stat('campaign stars', `${totalStars(profile.campaign)}/15`),
+        stat('achievements', `${unlocked.length}/${ACHIEVEMENTS.length}`)),
+      h('div', { class: 'profile-quests' },
+        h('h2', { class: 'section-label' }, `This week's quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
+        questList(profile))),
     h('section', { class: 'menu-section' },
-      h('h2', {}, `Weekly quests · 🧊 ${profile.freezes} streak freeze${profile.freezes === 1 ? '' : 's'}`),
-      questList(profile)),
-    h('section', { class: 'menu-section' },
-      h('h2', {}, 'Against the computer'),
+      h('h2', { class: 'section-label' }, 'Against the computer'),
       h('table', { class: 'records', testid: 'bot-records' },
         h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Opponent'), h('th', { scope: 'col' }, 'Record'), h('th', { scope: 'col' }, 'Best streak'))),
         h('tbody', {}, PERSONAS.map((p) => h('tr', { testid: `record-${p.id}` },
           h('th', { scope: 'row' }, `${p.avatar} ${p.name}`),
           h('td', {}, record(profile.bots[p.id])),
           h('td', {}, String(profile.bots[p.id]?.best ?? 0)))))),
-      h('p', { class: 'muted' }, `Online: ${record({ w: profile.online.w, d: profile.online.d, l: profile.online.l })}`)),
-    h('section', { class: 'menu-section' },
-      h('h2', {}, `Achievements (${Object.keys(profile.achievements).length}/${ACHIEVEMENTS.length})`),
-      h('ul', { class: 'achievements', testid: 'achievements' }, ACHIEVEMENTS.map((a) => {
-        const at = profile.achievements[a.id];
-        return h('li', { class: `achievement${at ? ' unlocked' : ''}`, testid: `ach-${a.id}`, dataset: { unlocked: String(Boolean(at)) } },
-          h('span', { class: 'ach-icon', 'aria-hidden': 'true' }, at ? a.icon : '🔒'),
-          h('span', {}, h('strong', {}, a.title), h('span', { class: 'muted' }, a.text),
-            at ? h('span', { class: 'sr-only' }, ' (unlocked)') : h('span', { class: 'sr-only' }, ' (locked)')));
-      }))),
+      h('p', { class: 'muted small' }, `Online: ${record({ w: profile.online.w, d: profile.online.d, l: profile.online.l })} · `, h('a', { href: '#/games' }, 'Review your games'))),
+    h('section', { class: 'menu-section', testid: 'achievements' },
+      h('h2', { class: 'section-label' }, `Achievements · ${unlocked.length} of ${ACHIEVEMENTS.length}`),
+      unlocked.length ? h('ul', { class: 'achievements' }, unlocked.map(achievement)) : h('p', { class: 'muted' }, 'None yet — win a game or solve a puzzle to earn your first.'),
+      h('details', { class: 'locked-achievements' },
+        h('summary', {}, `Still to unlock (${locked.length})`),
+        h('ul', { class: 'achievements' }, locked.map(achievement)))),
+    account.el,
+    currentUser() ? remindersSection() : null,
     h('section', { class: 'menu-section' },
       currentUser()
         ? h('p', { class: 'muted small', testid: 'reset-signed-in' }, 'Signed in: your profile is kept in your account and synced, so it cannot be reset from here. Sign out to reset this device.')
         : h('button', {
-          class: 'btn', type: 'button', testid: 'btn-reset-profile',
+          class: 'btn btn-small', type: 'button', testid: 'btn-reset-profile',
           onClick: async () => {
             if (await confirmDialog({ title: 'Reset your profile?', message: 'This clears your XP, rank, records, achievements and streak on this device. Lesson and opening progress is kept.', confirmLabel: 'Reset', danger: true })) {
               resetProfile();

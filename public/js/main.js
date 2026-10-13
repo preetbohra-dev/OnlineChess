@@ -40,6 +40,8 @@ import { renderOpeningsHub, renderOpening } from './screens/openings.js';
 import { renderRules } from './screens/rules.js';
 import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-session.js';
 import { bus } from './core/events.js';
+import { loadProfile } from './store/profile.js';
+import { rankFor } from './core/progression.js';
 
 const debug = (globalThis.__oc ??= {});
 debug.engines = 0;
@@ -171,6 +173,20 @@ applyTheme(settings.get().theme);
 settings.on('change', (s) => applyTheme(s.theme));
 installSoundUnlock();
 installCosmetics();
+// The Profile link in the top bar shows your rank and XP.
+function updateRankChip() {
+  const link = document.querySelector('[data-testid="nav-profile"]');
+  if (!link) return;
+  const p = loadProfile();
+  const rank = rankFor(p.xp);
+  link.setAttribute('aria-label', `Profile: ${rank.name}, ${p.xp} XP`);
+  link.replaceChildren(
+    h('span', { class: 'nav-rank-icon', 'aria-hidden': 'true' }, rank.icon),
+    h('span', { class: 'nav-rank-name', testid: 'nav-rank' }, rank.name),
+    h('span', { class: 'nav-rank-xp' }, `${p.xp} XP`));
+}
+updateRankChip();
+bus.on('profile:change', updateRankChip);
 installPwa();
 installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
 trackProgress();
