@@ -13,6 +13,7 @@ import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth, APP_RETURN } from './google-auth.js';
 import { createFriends } from './friends.js';
 import { createLive, MAX_LIVE_MESSAGE_BYTES } from './live.js';
+import { createFriendChallenges } from './friend-challenges.js';
 import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -126,7 +127,9 @@ export function createAppServer({
   const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
   const friends = db ? createFriends({ db }) : null;
   const live = db ? createLive({ db, accounts, friends, ...liveTiming }) : null;
-  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, onFriendEvent: live?.onFriendEvent, onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const manager = createRoomManager(rooms);
+  const challenges = db ? createFriendChallenges({ db, friends, rooms: manager, live }) : null;
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, challenges, onFriendEvent: (route, user, otherId, result) => { live?.onFriendEvent(route, user, otherId, result); if (otherId && /remove|decline/.test(route)) challenges?.forget(user.id, otherId); }, onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {
@@ -200,7 +203,6 @@ export function createAppServer({
   server.requestTimeout = 30_000;
   server.maxConnections = 2_000;
 
-  const manager = createRoomManager(rooms);
   const connections = createConnectionCounter(maxConnectionsPerIp);
   const attempts = new Map(); // address -> token bucket for new connections
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
@@ -273,6 +275,7 @@ export function createAppServer({
     accounts?.pruneSessions();
     emailAuth?.prune();
     friends?.prune();
+    challenges?.prune();
   }, GC_MS);
   heartbeat.unref();
   gc.unref();

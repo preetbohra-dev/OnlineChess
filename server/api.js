@@ -91,6 +91,7 @@ export function createApi({
   friends = null, // friends.js
   onFriendEvent = null, // (route, user, otherId, result): the live channel's notices
   onPresenceChange = null, // (userId): a player showed or hid their online status
+  challenges = null, // friend-challenges.js
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -383,6 +384,28 @@ export function createApi({
         if (!r.ok) return send(res, r.status, { error: r.error });
         const { ok, otherId = before?.id ?? null, ...rest } = r;
         onFriendEvent?.(route, user, otherId, rest);
+        return send(res, 200, rest);
+      }
+
+      // Challenges between friends (friend-challenges.js).
+      case 'GET /api/challenges': {
+        if (!challenges) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        return send(res, 200, challenges.list(user.id));
+      }
+      case 'POST /api/challenges':
+      case 'POST /api/challenges/answer':
+      case 'POST /api/challenges/cancel': {
+        if (!challenges) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`c${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const r = route === 'POST /api/challenges' ? challenges.create(user.id, body.value ?? {})
+          : route === 'POST /api/challenges/answer' ? challenges.answer(user.id, body.value ?? {})
+            : challenges.cancel(user.id, body.value ?? {});
+        if (!r.ok) return send(res, r.status, { error: r.error });
+        const { ok, ...rest } = r;
         return send(res, 200, rest);
       }
 

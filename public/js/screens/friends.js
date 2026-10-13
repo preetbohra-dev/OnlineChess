@@ -4,6 +4,8 @@ import { h, fill } from '../ui/dom.js';
 import { currentUser } from '../store/account.js';
 import { loadFriends, requestFriend, acceptFriend, declineFriend, removeFriend, setPresence } from '../store/friends.js';
 import { friendStatus, liveInfo } from '../net/live.js';
+import { openChallengeDialog, showIncoming } from '../ui/challenges.js';
+import { loadChallenges, cancelChallenge } from '../store/challenges.js';
 import { confirmDialog } from '../ui/modal.js';
 import { copyText } from '../ui/game-screen.js';
 import { toast } from '../ui/toast.js';
@@ -21,11 +23,13 @@ export function renderFriends(outlet) {
 
   const report = (r) => { if (!r.ok) toast(r.error, { kind: 'warn' }); };
 
+  let open = { incoming: [], outgoing: [] }; // challenges waiting for an answer
   async function refresh() {
     if (!currentUser()) { data = null; return draw(); }
-    const r = await loadFriends();
+    const [r, c] = await Promise.all([loadFriends(), loadChallenges()]);
     data = r.ok ? r.json : null;
     error = r.ok ? '' : r.error;
+    if (c.ok) open = c.json;
     draw();
   }
 
@@ -90,6 +94,13 @@ export function renderFriends(outlet) {
           h('button', { class: 'btn btn-small', type: 'button', testid: 'btn-copy-code', onClick: () => copyText(data.code, 'Friend code') }, 'Copy')),
         h('p', { class: 'muted small' }, 'Give it to a friend: they add you with it. It never changes, even if you change your name.')),
       h('section', { class: 'menu-section' }, addForm(), error ? h('p', { class: 'form-error', role: 'alert', testid: 'friends-error' }, error) : null),
+      open.incoming.length || open.outgoing.length ? h('section', { class: 'menu-section', testid: 'open-challenges' },
+        h('h2', { class: 'section-label' }, 'Challenges'),
+        h('ul', { class: 'friend-list' },
+          open.incoming.map((c) => row(c.with, h('span', { class: 'muted small' }, 'challenged you'),
+            h('button', { class: 'btn btn-primary btn-small', type: 'button', testid: `answer-${c.with.username}`, onClick: () => showIncoming(c) }, 'Answer'))),
+          open.outgoing.map((c) => row(c.with, h('span', { class: 'muted small' }, 'waiting for them'),
+            h('button', { class: 'btn btn-small', type: 'button', testid: `withdraw-${c.with.username}`, onClick: async () => { report(await cancelChallenge(c.id)); refresh(); } }, 'Withdraw'))))) : null,
       data.incoming.length ? h('section', { class: 'menu-section', testid: 'friend-requests' },
         h('h2', { class: 'section-label' }, `Requests (${data.incoming.length})`),
         h('ul', { class: 'friend-list' }, data.incoming.map((f) => row(f,
@@ -100,6 +111,7 @@ export function renderFriends(outlet) {
         data.friends.length
           ? h('ul', { class: 'friend-list' }, data.friends.map((f) => row(f,
             status(f),
+            h('button', { class: 'btn btn-primary btn-small', type: 'button', testid: `challenge-${f.username}`, disabled: !f.code, onClick: () => openChallengeDialog(f) }, 'Challenge'),
             h('button', {
               class: 'btn btn-small btn-danger-text', type: 'button', testid: `remove-${f.username}`,
               onClick: async () => { if (await confirmDialog({ title: `Remove ${f.username}?`, message: 'You will no longer be friends. You can add each other again later.', confirmLabel: 'Remove', danger: true })) { report(await removeFriend(f)); refresh(); } },
@@ -120,6 +132,7 @@ export function renderFriends(outlet) {
     bus.on('live:presence', draw),
     bus.on('live:hello', draw),
     bus.on('live:notice', (n) => { if (n.kind.startsWith('friend')) refresh(); }),
+    bus.on('challenges:change', refresh),
   ];
   return () => offs.forEach((off) => off());
 }

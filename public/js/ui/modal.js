@@ -3,13 +3,14 @@ import { h, pieceGlyph } from './dom.js';
 let openCount = 0;
 const openModals = new Set();
 
-// Closes every open dialog, e.g. when the route changes underneath them.
+// Closes every open dialog, e.g. when the route changes underneath them (except dialogs opened
+// with keepOnRoute, such as an incoming challenge, which stay until answered).
 export function closeAllModals() {
-  for (const modal of [...openModals]) modal.close('route');
+  for (const modal of [...openModals]) if (!modal.keepOnRoute) modal.close('route');
 }
 
 // Accessible modal dialog. actions: [{label, testid, primary, danger, onClick, keepOpen}]
-export function openModal({ title, body = [], actions = [], testid, dismissible = true, onClose, className = '' }) {
+export function openModal({ title, body = [], actions = [], testid, dismissible = true, onClose, className = '', keepOnRoute = false }) {
   const previousFocus = document.activeElement;
   const titleId = `modal-title-${++openCount}`;
   let closed = false;
@@ -61,7 +62,7 @@ export function openModal({ title, body = [], actions = [], testid, dismissible 
   document.body.append(backdrop);
   requestAnimationFrame(() => backdrop.classList.add('show'));
   (buttons.find((b) => b.classList.contains('btn-primary')) ?? buttons[0] ?? dialog).focus?.();
-  const handle = { close, el: dialog };
+  const handle = { close, el: dialog, keepOnRoute };
   openModals.add(handle);
   return handle;
 }

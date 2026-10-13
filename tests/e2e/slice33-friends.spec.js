@@ -62,3 +62,38 @@ test('live: a friend request pops up at once, and friends see each other online 
   await page.getByTestId('show-presence').uncheck();
   await expect(page.getByTestId('toast').filter({ hasText: 'look offline' })).toBeVisible();
 });
+
+test('challenge a friend: they accept, and both land on the same board', async ({ page, browser }) => {
+  const ana = await signUp(page);
+  await page.goto('/#/friends');
+  const anaCode = await page.getByTestId('friend-code').textContent();
+  const other = await browser.newContext();
+  const page2 = await other.newPage();
+  const ben = await signUp(page2);
+  await page2.goto('/#/friends');
+  await page2.getByTestId('friend-input').fill(anaCode);
+  await page2.getByTestId('btn-add-friend').click();
+  await page.getByTestId(`accept-${ben.name}`).click();
+  await expect(page.getByTestId(`presence-${ben.name}`)).toHaveText('Online');
+
+  // Ana challenges Ben: 5 minutes, Ana plays White.
+  await page.getByTestId(`challenge-${ben.name}`).click();
+  await page.getByTestId('challenge-tc').selectOption('5+0');
+  await page.getByTestId('challenge-color').selectOption('w');
+  await page.getByTestId('btn-send-challenge').click();
+  await expect(page.getByTestId('open-challenges')).toContainText('waiting for them');
+
+  // Ben, on another page, is asked at once.
+  await page2.goto('/#/train'); // moving around does not lose the challenge
+  await expect(page2.getByTestId('incoming-challenge')).toContainText(`${ana.name} challenges you`);
+  await expect(page2.getByTestId('incoming-challenge')).toContainText('5 min · you play Black');
+  await page2.getByTestId('btn-accept-challenge').click();
+
+  // Both are taken to the same game.
+  await expect(page2).toHaveURL(/#\/room\/[A-Z2-9]{6}$/);
+  await expect(page).toHaveURL(/#\/room\/[A-Z2-9]{6}$/);
+  expect(new URL(page.url()).hash).toBe(new URL(page2.url()).hash);
+  await expect(page.getByTestId('game')).toHaveAttribute('data-orientation', 'w');
+  await expect(page2.getByTestId('game')).toHaveAttribute('data-orientation', 'b');
+  await other.close();
+});

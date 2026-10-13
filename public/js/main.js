@@ -47,6 +47,7 @@ import { loadProfile } from './store/profile.js';
 import { rankFor } from './core/progression.js';
 import { startNative } from './net/native.js';
 import { startLive } from './net/live.js';
+import { startChallenges } from './ui/challenges.js';
 import { SITE } from './net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
@@ -200,6 +201,7 @@ trackProgress();
 trackGames();
 trackWeakSpots();
 trackSync();
+startChallenges();
 startLive();
 // Notices from the live channel that matter wherever the player is.
 bus.on('live:notice', (n) => {
