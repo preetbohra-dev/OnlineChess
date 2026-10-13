@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildServiceWorker } from '../../server/service-worker.js';
 
 function tempPublic(files) {
@@ -29,6 +30,19 @@ test('the version changes when any file changes, and only then', () => {
   assert.equal(buildServiceWorker(dir).version, v1);
   fs.writeFileSync(path.join(dir, 'js/main.js'), 'y');
   assert.notEqual(buildServiceWorker(dir).version, v1);
+});
+
+test('install fetches every file past the browser and CDN caches, so a new version never keeps old files', () => {
+  const { body } = buildServiceWorker(tempPublic({ 'index.html': '<p>' }));
+  assert.match(body, /cache\.addAll\(ASSETS\.map\(\(url\) => new Request\(url, \{ cache: 'reload' \}\)\)\)/);
+});
+
+test('the version also changes when the worker code changes', () => {
+  const dir = tempPublic({ 'index.html': 'a' });
+  const { version, body } = buildServiceWorker(dir);
+  const files = createHash('sha256').update('index.html').update('a').digest('hex').slice(0, 12);
+  assert.notEqual(version, files, 'the worker code is part of the version');
+  assert.ok(body.includes(`const VERSION = "${version}"`));
 });
 
 test('the real app precaches the engine, the piece sprites and the puzzles', () => {
