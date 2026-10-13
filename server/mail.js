@@ -8,6 +8,7 @@ import { createBucketMap, createTokenBucket } from './rate-limit.js';
 
 export const DEFAULT_AUTH_ENV = path.join(os.homedir(), '.jodhpur-studio', 'secrets', 'chess-auth.env');
 export const FROM = 'OnlineChess <no-reply@chess.solankidigitaldrafts.com>';
+export const REPLY_TO = 'preetbohra30@gmail.com'; // the support contact, as on the support page
 const RESEND_URL = 'https://api.resend.com/emails';
 const SEND_TIMEOUT_MS = 10_000;
 const OUTBOX_MAX = 200;
@@ -121,7 +122,7 @@ export function createMailer({ mode = process.env.MAIL, apiKey = '', from = FROM
         const res = await fetchImpl(RESEND_URL, {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to: [recipient], subject, text, html }),
+          body: JSON.stringify({ from, to: [recipient], reply_to: REPLY_TO, subject, text, html }),
           signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
         });
         if (!res.ok) return { ok: false, error: `send failed (${res.status})` };

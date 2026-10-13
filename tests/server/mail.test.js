@@ -61,7 +61,7 @@ test('live mode posts to Resend with the key; failures are reported, not thrown'
   assert.equal(calls[0].url, 'https://api.resend.com/emails');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer re_test_key');
-  assert.deepEqual(JSON.parse(calls[0].init.body), { from: FROM, to: ['p@example.com'], subject: 'Hi', text: 'T', html: '<p>T</p>' });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { from: FROM, to: ['p@example.com'], reply_to: 'preetbohra30@gmail.com', subject: 'Hi', text: 'T', html: '<p>T</p>' });
 
   const failing = createMailer({ mode: 'live', apiKey: 'k', fetchImpl: async () => new Response('{"message":"bad"}', { status: 422 }) });
   assert.deepEqual(await failing.send({ to: 'p@example.com', subject: 'S', text: 'T', html: 'H' }), { ok: false, error: 'send failed (422)' });
