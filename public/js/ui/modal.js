@@ -63,7 +63,7 @@ export function openModal({ title, body = [], actions = [], testid, dismissible 
   requestAnimationFrame(() => backdrop.classList.add('show'));
   // Focus without scrolling: a tall dialog opens at its top, not at its buttons.
   (buttons.find((b) => b.classList.contains('btn-primary')) ?? buttons[0] ?? dialog).focus?.({ preventScroll: true });
-  const handle = { close, el: dialog };
+  const handle = { close, el: dialog, keepOnRoute };
   openModals.add(handle);
   return handle;
 }
