@@ -35,6 +35,25 @@ iPhone (needs Xcode): open `ios/App/App.xcodeproj` in Xcode, or for the simulato
 xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
+## Release build (Google Play)
+
+The upload key lives outside the repository, in `~/.jodhpur-studio/secrets/`:
+
+- `onlinechess-upload.jks`: the key store (alias `upload`)
+- `onlinechess-upload.properties`: `storeFile`, `storePassword`, `keyAlias`, `keyPassword`
+
+Keep a copy of both somewhere safe, such as a password manager. With Play App Signing,
+Google signs the app for users, so a lost upload key can be reset in Play Console, but only
+after a support request and a wait. `android/app/build.gradle` reads the properties file, or
+the file named by `ANDROID_UPLOAD_PROPERTIES`, and signs the release with it.
+
+```sh
+npm run app:sync
+(cd android && ./gradlew bundleRelease)   # android/app/build/outputs/bundle/release/app-release.aab
+```
+
+Raise `versionCode` (and `versionName`) in `android/app/build.gradle` for every upload.
+
 ## Inside the app
 
 - `public/js/net/platform.js` tells the code it runs in an app (`isNativeApp()`), and points
