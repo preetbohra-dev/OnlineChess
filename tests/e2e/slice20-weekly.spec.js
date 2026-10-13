@@ -1,7 +1,7 @@
 import { test, expect, move } from './helpers.js';
 import { weeklySet, challengeWeek, loadPuzzleLibrary } from '../../server/challenge.js';
 
-const LIB = loadPuzzleLibrary();
+const LIB = loadPuzzleLibrary(new URL('../fixtures/weekly-puzzles.json', import.meta.url).pathname);
 const PW = 'correct horse battery';
 
 async function signUp(page) {

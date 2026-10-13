@@ -34,9 +34,16 @@ function scheduleBackups(db, dir, keep = 7) {
   setInterval(run, 6 * 60 * 60 * 1000).unref(); // checks four times a day; writes once per day
 }
 
-// The weekly challenge's puzzle pool (server-only), when present.
+// The weekly challenge's puzzle pool (server-only), when present. A broken file only turns the
+// challenge off; the rest of the site keeps running.
 function weeklyPool() {
-  return fs.existsSync(WEEKLY_POOL_FILE) ? loadPuzzleLibrary(WEEKLY_POOL_FILE) : null;
+  if (!fs.existsSync(WEEKLY_POOL_FILE)) return null;
+  try {
+    return loadPuzzleLibrary(WEEKLY_POOL_FILE);
+  } catch (err) {
+    console.error('Weekly challenge pool not loaded:', err.message);
+    return null;
+  }
 }
 
 const DEFAULT_PUBLIC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -84,12 +91,12 @@ export function createAppServer({
   authRate,
   syncRate,
   push = null, // { publicKey } when daily reminders are running
-  puzzles = undefined, // the weekly challenge's puzzle library (default: public/data/puzzles.json)
+  puzzles = undefined, // the weekly challenge's puzzle library (default: WEEKLY_POOL_FILE; null: none)
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles ?? weeklyPool() });
+  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];

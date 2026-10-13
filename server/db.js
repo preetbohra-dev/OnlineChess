@@ -73,6 +73,13 @@ const MIGRATIONS = [
    );
    CREATE INDEX challenge_answers_week ON challenge_answers(week);
    CREATE INDEX challenge_games_week ON challenge_games(week);`,
+  // 4: each week's challenge set, fixed when the week is first served (so changing the pool never
+  // changes a week that has started)
+  `CREATE TABLE challenge_sets (
+     week TEXT PRIMARY KEY,
+     data TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -137,6 +144,8 @@ function wrap(db) {
     startGame: db.prepare('INSERT OR IGNORE INTO challenge_starts (user_id, week, slot, at) VALUES (?, ?, ?, ?)'),
     gameStart: db.prepare('SELECT at FROM challenge_starts WHERE user_id = ? AND week = ? AND slot = ?'),
     gamesPlayed: db.prepare('SELECT slot, outcome, points FROM challenge_games WHERE user_id = ? AND week = ?'),
+    weekSet: db.prepare('SELECT data FROM challenge_sets WHERE week = ?'),
+    addWeekSet: db.prepare('INSERT OR IGNORE INTO challenge_sets (week, data, created_at) VALUES (?, ?, ?)'),
     addGame: db.prepare('INSERT OR IGNORE INTO challenge_games (user_id, week, slot, outcome, points, plies, at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
     // Score per player for a week: puzzle points + game points; ties go to whoever finished first.
     leaderboard: db.prepare(`WITH scores AS (
