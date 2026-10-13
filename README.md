@@ -50,6 +50,7 @@ Environment variables:
 | `AUTH_BURST`, `SYNC_BURST` | `10`, `5` | Burst sizes of the per-address sign-in and per-account sync/report limits. Raised only for test runs, where every browser shares one address. |
 | `APP_ORIGINS` | `capacitor://localhost,https://localhost` | Page origins of the iPhone and Android apps, allowed to call the API across origins with a bearer token. |
 | `CSP_CONNECT_EXTRA` | (none) | Test runs only: extra `connect-src` origins, for serving "app" pages from a second origin. Never set it on the live server. |
+| `ANDROID_CERT_SHA256`, `APPLE_TEAM_ID` | (none) | Let links to the site open the apps (`/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`); see docs/APPS.md. |
 | `WEEKLY_POOL_FILE` | `~/.jodhpur-studio/data/weekly-puzzles.json` | The weekly challenge's private puzzle pool (see docs/DEPLOY.md). |
 
 Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.

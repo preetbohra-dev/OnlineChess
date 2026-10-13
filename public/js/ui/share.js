@@ -3,6 +3,7 @@
 import { createGame } from '../core/rules.js';
 import { currentBoardTheme } from './cosmetics.js';
 import { toast } from './toast.js';
+import { nativeShare } from '../net/native.js';
 
 const W = 1200;
 const H = 630;
@@ -109,6 +110,8 @@ export function prepareShare({ card, text, url, filename = 'onlinechess.png' }) 
 export function sharePrepared(prepared) {
   const { text, url } = prepared;
   debug.lastShare = { text, url };
+  const native = nativeShare({ text, url }); // the phone's share sheet inside the apps
+  if (native) return native;
   if (navigator.share && !debug.forceDownload) {
     const withFile = prepared.file && navigator.canShare?.({ files: [prepared.file] });
     // No await before this call: it must run within the user's tap.

@@ -42,6 +42,8 @@ import { createTrainingSession, TRAINING_LEVELS } from './sessions/training-sess
 import { bus } from './core/events.js';
 import { loadProfile } from './store/profile.js';
 import { rankFor } from './core/progression.js';
+import { startNative } from './net/native.js';
+import { SITE } from './net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
 debug.engines = 0;
@@ -188,6 +190,7 @@ function updateRankChip() {
 updateRankChip();
 bus.on('profile:change', updateRankChip);
 installPwa();
+startNative({ site: SITE });
 installCelebrations(); // before trackProgress, whose start-up sync may unlock achievements
 trackProgress();
 trackGames();

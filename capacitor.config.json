@@ -1,0 +1,24 @@
+{
+  "appId": "com.solankidigitaldrafts.chess",
+  "appName": "OnlineChess",
+  "webDir": "build/app-www",
+  "backgroundColor": "#16181d",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "launchFadeOutDuration": 200,
+      "backgroundColor": "#16181d",
+      "showSpinner": false
+    },
+    "SystemBars": {
+      "insetsHandling": "css"
+    }
+  }
+}
