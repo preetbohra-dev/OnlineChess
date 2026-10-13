@@ -4,6 +4,8 @@
 import { appStore } from './storage.js';
 import { bus } from '../core/events.js';
 import { SYNC_KEYS, mergeStates } from '../core/sync.js';
+import { emptyProfile } from '../core/progression.js';
+import { currentSubscription } from '../ui/reminders.js';
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-OC-Request': '1' };
 const SYNC_DELAY_MS = 4000;
@@ -56,6 +58,26 @@ export async function logout() {
   try { await api('POST', '/api/logout', {}); } catch { /* signed out locally anyway */ }
   lastSync = null;
   setUser(null); // this device keeps its progress
+}
+
+// Delete the account (the password confirms it). This device keeps its progress unless
+// `clearDevice` is set, which also removes the synced keys stored here.
+export async function deleteAccount(password, { clearDevice = false, store = appStore() } = {}) {
+  let r;
+  try {
+    r = await api('POST', '/api/account/delete', { password });
+  } catch {
+    return { ok: false, error: 'No connection. Try again when you are online.' };
+  }
+  if (!r.ok) return { ok: false, error: r.json.error ?? 'Something went wrong.' };
+  clearTimeout(timer);
+  lastSync = null;
+  // The server forgot this device's reminder subscription; drop it in the browser too.
+  try { await (await currentSubscription())?.unsubscribe(); } catch { /* reminders unsupported here */ }
+  if (clearDevice) for (const k of SYNC_KEYS) store.remove(k);
+  setUser(null);
+  if (clearDevice) bus.emit('profile:change', { profile: emptyProfile(), xp: 0, unlocked: [], rankUp: null, event: { type: 'reset' } });
+  return { ok: true };
 }
 
 // Send this device's progress, receive the account's merged progress, and store it here.

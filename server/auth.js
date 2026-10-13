@@ -3,6 +3,7 @@
 // username exists.
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
+import { nameProblem } from './names.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -83,6 +84,7 @@ export function createAccounts(db, { now = () => Date.now() } = {}) {
     async register(username, password) {
       const problem = validateCredentials(username, password);
       if (problem) return { ok: false, status: 400, error: problem };
+      if (nameProblem(username)) return { ok: false, status: 400, error: 'Please choose a different username.' };
       if (db.q.userByName.get(username)) return { ok: false, status: 409, error: 'That username is taken.' };
       const hash = await hashPassword(password);
       let id;
@@ -109,6 +111,24 @@ export function createAccounts(db, { now = () => Date.now() } = {}) {
       if (!(await verifyPassword(password, user.pass_hash))) return generic;
       attempts.delete(key);
       return { ok: true, user: { id: user.id, username: user.username }, token: newSession(user.id) };
+    },
+
+    // The player deletes their own account: the password is checked like a sign-in (same lockout),
+    // then the user and everything stored for them (sessions, progress, reminders, challenge
+    // entries, reports) go, through ON DELETE CASCADE.
+    async deleteAccount(userId, password, address = 'local') {
+      const generic = { ok: false, status: 401, error: 'Wrong password.' };
+      const user = db.q.userById.get(userId);
+      if (!user || typeof password !== 'string' || password.length > PASSWORD_MAX) return generic;
+      const key = `${user.id}|${address}`;
+      const rec = attemptRecord(key);
+      if (rec.lockedUntil > now()) return generic;
+      rec.count++;
+      if (rec.count >= LOCK_AFTER) rec.lockedUntil = now() + LOCK_WINDOW_MS;
+      if (!(await verifyPassword(password, db.q.userByName.get(user.username).pass_hash))) return generic;
+      attempts.delete(key);
+      db.q.deleteUser.run(user.id);
+      return { ok: true };
     },
 
     // The signed-in user for a session token, or null (expired sessions are removed).

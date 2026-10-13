@@ -47,6 +47,8 @@ Environment variables:
 | `VAPID_SUBJECT` | `https://<first ALLOWED_HOSTS>` | Contact for push services (`mailto:` or an https URL). |
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
+| `AUTH_BURST`, `SYNC_BURST` | `10`, `5` | Burst sizes of the per-address sign-in and per-account sync/report limits. Raised only for test runs, where every browser shares one address. |
+| `WEEKLY_POOL_FILE` | `~/.jodhpur-studio/data/weekly-puzzles.json` | The weekly challenge's private puzzle pool (see docs/DEPLOY.md). |
 
 Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.
 

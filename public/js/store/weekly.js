@@ -18,6 +18,7 @@ export const loadChallenge = () => call('GET', '/api/challenge');
 export const loadLeaderboard = () => call('GET', '/api/challenge/leaderboard');
 export const answerPuzzle = (week, index, move) => call('POST', '/api/challenge/answer', { week, index, move });
 export const startGame = (week, slot) => call('POST', '/api/challenge/start', { week, slot });
+export const reportPlayer = (username) => call('POST', '/api/report', { username });
 
 // Endings the server can check from the moves alone (resignations and time-outs cannot be).
 const CHECKABLE = new Set(['checkmate', 'stalemate', 'insufficient', 'fivefold', 'seventyfive']);

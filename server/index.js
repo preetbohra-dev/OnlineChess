@@ -212,6 +212,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const app = createAppServer({
     db,
     push: reminders ? { publicKey: reminders.publicKey } : null,
+    authRate: { rate: 0.2, burst: intEnv('AUTH_BURST', 10) },
+    syncRate: { rate: 0.5, burst: intEnv('SYNC_BURST', 5) },
     rooms: { maxRoomsPerAddress: intEnv('ROOMS_PER_ADDRESS', 5), createsPerHour: intEnv('ROOM_CREATES_PER_HOUR', 20) },
     connectRate: { rate: 1, burst: intEnv('WS_CONNECT_BURST', 10) },
     maxConnectionsPerIp: intEnv('WS_CONNECTIONS_PER_ADDRESS', 8),

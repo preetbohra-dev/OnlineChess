@@ -4,6 +4,7 @@
 //   GET /api/push/key · POST /api/push/subscribe {subscription, tz, hour} · POST /api/push/unsubscribe {endpoint}
 //   GET /api/challenge · POST /api/challenge/answer {index, move} · POST /api/challenge/game {slot, moves}
 //   GET /api/challenge/leaderboard
+//   POST /api/account/delete {password} · POST /api/report {username}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
 // SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock
 // after repeated wrong passwords (see auth.js).
@@ -11,9 +12,15 @@ import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js'
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
 import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, PUZZLE_POINTS, MIN_MS_PER_PLY } from './challenge.js';
+import { USERNAME } from './auth.js';
 
 export const SESSION_COOKIE = 'oc_session';
 const AUTH_BODY_BYTES = 2 * 1024;
+// Different players (with accounts at least REPORTER_MIN_AGE_MS old) who must report a username
+// before it leaves the leaderboard, and how many players one account may report per day.
+export const HIDE_AFTER_REPORTS = 3;
+export const REPORTER_MIN_AGE_MS = 86_400_000;
+const REPORTS_PER_DAY = 10;
 
 function send(res, status, body, headers = {}) {
   const json = JSON.stringify(body);
@@ -233,13 +240,45 @@ export function createApi({
         if (!syncBuckets.take(`l${addressOf(req)}`)) return send(res, 429, { error: 'Too many requests.' });
         const week = thisWeek().week;
         const board = cachedBoard(week);
-        const row = user ? db.q.myRank.get(PUZZLE_POINTS, week, week, user.id) : null;
+        const row = user ? db.q.myRank.get(PUZZLE_POINTS, week, week, user.id, user.id) : null;
         return send(res, 200, {
           week,
           top: board.top,
           me: user ? { username: user.username, rank: row?.score > 0 ? row.rank : null, score: row?.score ?? 0 } : null,
           lastWeek: board.lastWeek,
         });
+      }
+
+      case 'POST /api/account/delete': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const result = await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
+        if (!result.ok) return send(res, result.status, { error: result.error });
+        boardCache.at = 0; // the player leaves the leaderboard at once
+        return send(res, 200, { user: null }, { 'Set-Cookie': cookie(req, '', 0) });
+      }
+
+      // A signed-in player reports another player's username. Enough different established reporters hide it
+      // from the leaderboard until an admin looks (scripts/admin.mjs reports | hide | unhide).
+      case 'POST /api/report': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`r${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const name = body.value?.username;
+        const target = typeof name === 'string' && USERNAME.test(name) ? db.q.userByName.get(name) : null;
+        if (!target) return send(res, 404, { error: 'No such player.' });
+        if (target.id === user.id) return send(res, 400, { error: 'You cannot report yourself.' });
+        if (db.q.reportsBy.get(user.id, now() - 86_400_000).n >= REPORTS_PER_DAY) return send(res, 429, { error: 'You have sent a lot of reports today. Try again tomorrow.' });
+        db.q.addReport.run(user.id, target.id, now());
+        if (!target.hidden && db.q.countReports.get(target.id, now() - REPORTER_MIN_AGE_MS).n >= HIDE_AFTER_REPORTS) {
+          db.q.setHidden.run(1, target.id);
+          boardCache.at = 0;
+        }
+        return send(res, 200, { ok: true });
       }
 
       default:
