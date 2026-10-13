@@ -39,7 +39,9 @@ export function renderHome(outlet) {
     h('footer', { class: 'credits muted' },
       'Computer opponents are powered by ', h('a', { href: 'https://stockfishchess.org', rel: 'noopener', target: '_blank' }, 'Stockfish'),
       ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '. ',
-      h('a', { href: SOURCE_URL, rel: 'noopener', target: '_blank', testid: 'source-link' }, 'Source code'), '.')));
+      h('a', { href: SOURCE_URL, rel: 'noopener', target: '_blank', testid: 'source-link' }, 'Source code'), ' · ',
+      h('a', { href: '/privacy.html', testid: 'footer-privacy' }, 'Privacy'), ' · ',
+      h('a', { href: '/support.html', testid: 'footer-support' }, 'Support'))));
 }
 
 export function renderPlayMenu(outlet) {

@@ -185,3 +185,61 @@ test('admin fix-week stores this week once from the given pool', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('players can report a username; three different reporters hide it from the leaderboard', async () => {
+  const db = openDatabase(':memory:');
+  const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
+  await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
+  try {
+    const url = `http://127.0.0.1:${app.http.address().port}`;
+    const headers = { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' };
+    const post = async (p, body, cookie) => { const r = await fetch(url + p, { method: 'POST', headers: { ...headers, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) }); return { status: r.status, json: await r.json() }; };
+    const signUp = async (name) => (await fetch(`${url}/api/register`, { method: 'POST', headers, body: JSON.stringify({ username: name, password: 'correct horse battery' }) })).headers.get('set-cookie').split(';')[0];
+    const board = async () => (await (await fetch(`${url}/api/challenge/leaderboard`)).json()).top.map((r) => r.username);
+
+    const target = await signUp('rudename');
+    const week = challengeWeek();
+    const set = weeklySet(week, LIB);
+    assert.equal((await post('/api/challenge/answer', { week, index: 0, move: set.puzzles[0].answer }, target)).status, 200);
+    assert.deepEqual(await board(), ['rudename']);
+
+    assert.equal((await post('/api/report', { username: 'rudename' })).status, 401, 'signed in only');
+    assert.equal((await post('/api/report', { username: 'rudename' }, target)).status, 400, 'not yourself');
+    assert.equal((await post('/api/report', { username: 'nobody_here' }, await signUp('lookerw'))).status, 404);
+    const fresh = await signUp('newbie');
+    const reporters = [await signUp('repone'), await signUp('reptwo'), await signUp('repthree')];
+    // Reports from accounts younger than a day are recorded but do not count towards hiding.
+    db.raw.prepare('UPDATE users SET created_at = created_at - 2 * 86400000 WHERE username IN (?, ?, ?)').run('repone', 'reptwo', 'repthree');
+    assert.equal((await post('/api/report', { username: 'rudename' }, fresh)).status, 200);
+    assert.deepEqual((await post('/api/report', { username: 'rudename' }, reporters[0])).json, { ok: true });
+    assert.equal((await post('/api/report', { username: 'RudeName' }, reporters[0])).status, 200, 'reporting twice is harmless');
+    assert.equal((await post('/api/report', { username: 'rudename' }, reporters[1])).status, 200);
+    assert.deepEqual(await board(), ['rudename'], 'two reporters are not enough');
+    assert.equal((await post('/api/report', { username: 'rudename' }, reporters[2])).status, 200);
+    assert.deepEqual(await board(), [], 'hidden after the third reporter, at once');
+    const me = (await (await fetch(`${url}/api/challenge/leaderboard`, { headers: { Cookie: target } })).json()).me;
+    assert.deepEqual(me, { username: 'rudename', rank: 1, score: 10 }, 'the hidden player still sees their own score');
+  } finally {
+    await app.close();
+  }
+});
+
+test('one account can report at most ten players a day', async () => {
+  const db = openDatabase(':memory:');
+  const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 }, puzzles: LIB });
+  await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
+  try {
+    const url = `http://127.0.0.1:${app.http.address().port}`;
+    const headers = { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' };
+    const signUp = async (name) => (await fetch(`${url}/api/register`, { method: 'POST', headers, body: JSON.stringify({ username: name, password: 'correct horse battery' }) })).headers.get('set-cookie').split(';')[0];
+    const reporter = await signUp('busyreporter');
+    const statuses = [];
+    for (let i = 0; i < 11; i++) {
+      await signUp(`target${i}`);
+      statuses.push((await fetch(`${url}/api/report`, { method: 'POST', headers: { ...headers, Cookie: reporter }, body: JSON.stringify({ username: `target${i}` }) })).status);
+    }
+    assert.deepEqual(statuses, [...Array(10).fill(200), 429]);
+  } finally {
+    await app.close();
+  }
+});

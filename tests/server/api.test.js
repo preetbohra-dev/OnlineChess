@@ -130,3 +130,34 @@ test('push: key, subscribe (validated, signed in only) and unsubscribe', async (
   assert.equal(pdb.q.allPush.all().length, 0);
   await papp.close();
 });
+
+test('register refuses offensive or official-looking usernames', async () => {
+  const bad = await call('POST', '/api/register', { body: { username: 'sh1thead', password: PW } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.json.error, 'Please choose a different username.');
+  assert.equal((await call('POST', '/api/register', { body: { username: 'admin', password: PW } })).status, 400);
+  assert.equal((await call('POST', '/api/register', { body: { username: 'classic', password: PW } })).status, 201);
+});
+
+test('delete account: needs the password, removes everything, signs out', async () => {
+  const r = await call('POST', '/api/register', { body: { username: 'gonegone', password: PW } });
+  const id = db.raw.prepare('SELECT id FROM users WHERE username = ?').get('gonegone').id;
+  assert.equal((await call('PUT', '/api/state', { cookie: r.cookie, body: { state: { profile: emptyProfile() } } })).status, 200);
+  assert.ok(db.q.state.get(id));
+
+  assert.equal((await call('POST', '/api/account/delete', { body: { password: PW } })).status, 401, 'signed in only');
+  assert.equal((await call('POST', '/api/account/delete', { cookie: r.cookie, body: { password: PW }, csrf: false })).status, 403, 'CSRF-protected');
+  const wrong = await call('POST', '/api/account/delete', { cookie: r.cookie, body: { password: 'not my password' } });
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.json.error, 'Wrong password.');
+  assert.deepEqual((await call('GET', '/api/me', { cookie: r.cookie })).json, { user: { username: 'gonegone' } }, 'still there');
+
+  const del = await call('POST', '/api/account/delete', { cookie: r.cookie, body: { password: PW } });
+  assert.equal(del.status, 200);
+  assert.deepEqual(del.json, { user: null });
+  assert.match(del.headers.get('set-cookie'), /Max-Age=0/);
+  assert.deepEqual((await call('GET', '/api/me', { cookie: r.cookie })).json, { user: null });
+  assert.equal(db.q.state.get(id), undefined, 'synced progress is gone');
+  assert.equal((await call('POST', '/api/login', { body: { username: 'gonegone', password: PW } })).status, 401);
+  assert.equal((await call('POST', '/api/register', { body: { username: 'gonegone', password: PW } })).status, 201, 'the name is free again');
+});
