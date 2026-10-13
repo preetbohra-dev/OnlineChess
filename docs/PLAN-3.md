@@ -44,7 +44,7 @@ lessons, openings, review), and passing both stores' review on the first or seco
 | 22 | Store pages and safety: privacy, support, delete account, report usernames | M | yes |
 | 23 | App sign-in and API access from the apps (tokens, CORS, origins) | M | yes |
 | 24 | Capacitor shell: iOS + Android projects, icons, splash, back button, haptics, links | L | no |
-| 25 | Native reminders: APNs (iOS) and FCM (Android) from our server | M | yes |
+| 25 | Native reminders: APNs (iOS) and FCM (Android) from our server — deferred past v1 | M | yes |
 | 26 | Store packaging: signed builds, screenshots, listings, privacy answers | M | no |
 
 ### Slice 21 — weekly pool out of the repo
@@ -95,7 +95,7 @@ lessons, openings, review), and passing both stores' review on the first or seco
 - Builds: `android/` with Gradle from the terminal; `ios/` with `xcodebuild` once Xcode is in.
 - Every existing e2e test still passes on the website; new unit tests cover the platform switch.
 
-### Slice 25 — native reminders
+### Slice 25 — native reminders (deferred to after the first store release, user 2026-10-13)
 
 - `@capacitor/push-notifications`: the app asks permission and registers its device token with
   `POST /api/push/native` (platform, token, time zone, hour), stored next to the Web Push
