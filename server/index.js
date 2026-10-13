@@ -256,6 +256,7 @@ export function createAppServer({
     attempts.clear(); // buckets refill within seconds; dropping them bounds memory
     accounts?.pruneSessions();
     emailAuth?.prune();
+    friends?.prune();
   }, GC_MS);
   heartbeat.unref();
   gc.unref();

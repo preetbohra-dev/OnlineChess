@@ -19,6 +19,8 @@ export const requestFriend = (who) => {
   const text = String(who ?? '').trim();
   return call('POST', '/api/friends/request', /^oc-/i.test(text) ? { code: text } : { name: text }).then(changed);
 };
-export const acceptFriend = (code) => call('POST', '/api/friends/accept', { code }).then(changed);
-export const declineFriend = (code) => call('POST', '/api/friends/decline', { code }).then(changed);
-export const removeFriend = (code) => call('POST', '/api/friends/remove', { code }).then(changed);
+// `friend`: an entry from the list ({ username, code }); named by code, or by name before they have one.
+const named = (f) => (f.code ? { code: f.code } : { name: f.username });
+export const acceptFriend = (f) => call('POST', '/api/friends/accept', named(f)).then(changed);
+export const declineFriend = (f) => call('POST', '/api/friends/decline', named(f)).then(changed);
+export const removeFriend = (f) => call('POST', '/api/friends/remove', named(f)).then(changed);

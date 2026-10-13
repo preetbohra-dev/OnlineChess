@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAppServer } from '../../server/index.js';
 import { openDatabase } from '../../server/db.js';
-import { FRIEND_CODE, newFriendCode, MAX_REQUESTS_PER_DAY } from '../../server/friends.js';
+import { FRIEND_CODE, newFriendCode, MAX_REQUESTS_PER_DAY, MAX_ASKS_PER_PERSON } from '../../server/friends.js';
 
 const PW = 'correct horse battery';
 let app, base, db;
@@ -73,6 +73,7 @@ test('decline, cancel and remove leave nothing behind; mistakes are explained', 
   const fay = await player('fay');
   const ask = () => call('POST', '/api/friends/request', { cookie: eve.cookie, body: { code: fay.code } });
   await ask();
+  assert.equal((await call('POST', '/api/friends/accept', { cookie: eve.cookie, body: { code: fay.code } })).status, 404, 'nobody accepts their own request');
   assert.equal((await call('POST', '/api/friends/decline', { cookie: fay.cookie, body: { code: eve.code } })).status, 200);
   assert.deepEqual((await call('GET', '/api/friends', { cookie: eve.cookie })).json.outgoing, [], 'a declined request just disappears');
   await ask();
@@ -82,6 +83,7 @@ test('decline, cancel and remove leave nothing behind; mistakes are explained', 
   await call('POST', '/api/friends/accept', { cookie: fay.cookie, body: { code: eve.code } });
   await call('POST', '/api/friends/remove', { cookie: fay.cookie, body: { code: eve.code } });
   assert.deepEqual((await call('GET', '/api/friends', { cookie: eve.cookie })).json.friends, []);
+  assert.equal((await ask()).status, 429, `asking the same player more than ${MAX_ASKS_PER_PERSON} times in a month is refused (cancelling does not reset it)`);
 
   assert.equal((await call('POST', '/api/friends/request', { cookie: eve.cookie, body: { code: eve.code } })).json.error, 'That is your own code.');
   assert.equal((await call('POST', '/api/friends/request', { cookie: eve.cookie, body: { code: 'OC-ZZZZZZ' } })).status, 404);
@@ -107,4 +109,36 @@ test('deleting an account removes its friendships', async () => {
   await call('POST', '/api/friends/accept', { cookie: hal.cookie, body: { code: gus.code } });
   db.q.deleteUser.run(db.q.userByName.get('gus').id);
   assert.deepEqual((await call('GET', '/api/friends', { cookie: hal.cookie })).json.friends, []);
+});
+
+test('cancelling and asking again still counts against the daily limit', async () => {
+  const cyc = await player('cycler');
+  let last;
+  for (let i = 0; i < MAX_REQUESTS_PER_DAY + 1; i++) {
+    const target = await player(`cycle${Math.floor(i / 3)}`);
+    last = await call('POST', '/api/friends/request', { cookie: cyc.cookie, body: { code: target.code } });
+    await call('POST', '/api/friends/remove', { cookie: cyc.cookie, body: { code: target.code } });
+  }
+  assert.equal(last.status, 429);
+});
+
+test('players hidden after reports cannot be found; asking by name never makes their code', async () => {
+  const quiet = await fetch(`${base}/api/register`, { method: 'POST', headers: { Origin: base, 'X-OC-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'nocodeyet', password: PW }) });
+  assert.equal(quiet.status, 201);
+  const asker = await player('asker');
+  const r = await call('POST', '/api/friends/request', { cookie: asker.cookie, body: { name: 'nocodeyet' } });
+  assert.deepEqual(r.json.friend, { username: 'nocodeyet', code: null }, 'no code made for someone else');
+  assert.equal(db.q.friendCode.get(db.q.userByName.get('nocodeyet').id).friend_code, null);
+
+  const shady = await player('shady');
+  db.q.setHidden.run(1, db.q.userByName.get('shady').id);
+  assert.equal((await call('POST', '/api/friends/request', { cookie: asker.cookie, body: { code: shady.code } })).status, 404);
+  assert.equal((await call('POST', '/api/friends/request', { cookie: asker.cookie, body: { name: 'shady' } })).status, 404);
+});
+
+test('the routes need a session and the CSRF header', async () => {
+  const ana = await player('ana');
+  assert.equal((await call('POST', '/api/friends/request', { body: { code: ana.code } })).status, 401);
+  const r = await fetch(`${base}/api/friends/request`, { method: 'POST', headers: { Origin: base, Cookie: ana.cookie, 'Content-Type': 'application/json' }, body: '{"name":"ben"}' });
+  assert.equal(r.status, 403);
 });

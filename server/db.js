@@ -134,7 +134,13 @@ const MIGRATIONS = [
      PRIMARY KEY (user_lo, user_hi),
      CHECK (user_lo < user_hi)
    );
-   CREATE INDEX friendships_hi ON friendships(user_hi);`,
+   CREATE INDEX friendships_hi ON friendships(user_hi);
+   CREATE TABLE friend_requests (
+     sender INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     target INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX friend_requests_sender ON friend_requests(sender, created_at);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -221,7 +227,12 @@ function wrap(db) {
       FROM users u JOIN reports r ON r.reported_id = u.id GROUP BY u.id ORDER BY last DESC`),
     friendCode: db.prepare('SELECT friend_code FROM users WHERE id = ?'),
     setFriendCode: db.prepare('UPDATE users SET friend_code = ? WHERE id = ? AND friend_code IS NULL'),
-    userByFriendCode: db.prepare('SELECT id, username, friend_code FROM users WHERE friend_code = ?'),
+    userByFriendCode: db.prepare('SELECT id, username, friend_code, hidden FROM users WHERE friend_code = ?'),
+    logFriendRequest: db.prepare('INSERT INTO friend_requests (sender, target, created_at) VALUES (?, ?, ?)'),
+    requestsLoggedSince: db.prepare('SELECT COUNT(*) AS n FROM friend_requests WHERE sender = ? AND created_at > ?'),
+    requestsToSince: db.prepare('SELECT COUNT(*) AS n FROM friend_requests WHERE sender = ? AND target = ? AND created_at > ?'),
+    pendingIncoming: db.prepare("SELECT COUNT(*) AS n FROM friendships WHERE (user_lo = ? OR user_hi = ?) AND status = 'pending' AND requested_by <> ?"),
+    pruneFriendRequests: db.prepare('DELETE FROM friend_requests WHERE created_at < ?'),
     friendship: db.prepare('SELECT * FROM friendships WHERE user_lo = ? AND user_hi = ?'),
     addFriendship: db.prepare("INSERT INTO friendships (user_lo, user_hi, requested_by, status, created_at) VALUES (?, ?, ?, 'pending', ?)"),
     acceptFriendship: db.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE user_lo = ? AND user_hi = ? AND status = 'pending'"),
@@ -229,7 +240,6 @@ function wrap(db) {
     friendshipsOf: db.prepare(`SELECT f.status, f.requested_by, f.created_at, f.accepted_at, u.id, u.username, u.friend_code
       FROM friendships f JOIN users u ON u.id = CASE WHEN f.user_lo = ? THEN f.user_hi ELSE f.user_lo END
       WHERE f.user_lo = ? OR f.user_hi = ? ORDER BY u.username COLLATE NOCASE`),
-    requestsSentSince: db.prepare('SELECT COUNT(*) AS n FROM friendships WHERE requested_by = ? AND created_at > ?'),
     friendCount: db.prepare("SELECT COUNT(*) AS n FROM friendships WHERE (user_lo = ? OR user_hi = ?) AND status = 'accepted'"),
     identity: db.prepare('SELECT * FROM identities WHERE provider = ? AND subject = ?'),
     addIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),

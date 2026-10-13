@@ -18,6 +18,8 @@ export function renderFriends(outlet) {
   let busy = false;
   let typed = '';
 
+  const report = (r) => { if (!r.ok) toast(r.error, { kind: 'warn' }); };
+
   async function refresh() {
     if (!currentUser()) { data = null; return draw(); }
     const r = await loadFriends();
@@ -41,8 +43,8 @@ export function renderFriends(outlet) {
         e.preventDefault();
         if (busy || !input.value.trim()) return;
         busy = true;
-        const r = await requestFriend(input.value);
-        busy = false;
+        let r;
+        try { r = await requestFriend(input.value); } finally { busy = false; }
         if (!r.ok) { error = r.error; draw(); return; }
         typed = '';
         error = '';
@@ -74,21 +76,21 @@ export function renderFriends(outlet) {
       data.incoming.length ? h('section', { class: 'menu-section', testid: 'friend-requests' },
         h('h2', { class: 'section-label' }, `Requests (${data.incoming.length})`),
         h('ul', { class: 'friend-list' }, data.incoming.map((f) => row(f,
-          h('button', { class: 'btn btn-primary btn-small', type: 'button', testid: `accept-${f.username}`, onClick: async () => { const r = await acceptFriend(f.code); toast(r.ok ? `You and ${f.username} are friends.` : r.error); refresh(); } }, 'Accept'),
-          h('button', { class: 'btn btn-small', type: 'button', testid: `decline-${f.username}`, onClick: async () => { await declineFriend(f.code); refresh(); } }, 'Decline'))))) : null,
+          h('button', { class: 'btn btn-primary btn-small', type: 'button', testid: `accept-${f.username}`, onClick: async () => { const r = await acceptFriend(f); toast(r.ok ? `You and ${f.username} are friends.` : r.error); refresh(); } }, 'Accept'),
+          h('button', { class: 'btn btn-small', type: 'button', testid: `decline-${f.username}`, onClick: async () => { report(await declineFriend(f)); refresh(); } }, 'Decline'))))) : null,
       h('section', { class: 'menu-section', testid: 'friend-list' },
         h('h2', { class: 'section-label' }, `Friends (${data.friends.length})`),
         data.friends.length
           ? h('ul', { class: 'friend-list' }, data.friends.map((f) => row(f,
             h('button', {
               class: 'btn btn-small btn-danger-text', type: 'button', testid: `remove-${f.username}`,
-              onClick: async () => { if (await confirmDialog({ title: `Remove ${f.username}?`, message: 'You will no longer be friends. You can add each other again later.', confirmLabel: 'Remove', danger: true })) { await removeFriend(f.code); refresh(); } },
+              onClick: async () => { if (await confirmDialog({ title: `Remove ${f.username}?`, message: 'You will no longer be friends. You can add each other again later.', confirmLabel: 'Remove', danger: true })) { report(await removeFriend(f)); refresh(); } },
             }, 'Remove'))))
           : h('p', { class: 'muted' }, 'No friends yet. Share your code, or add someone by theirs.')),
       data.outgoing.length ? h('section', { class: 'menu-section', testid: 'friend-sent' },
         h('h2', { class: 'section-label' }, 'Waiting for an answer'),
         h('ul', { class: 'friend-list' }, data.outgoing.map((f) => row(f,
-          h('button', { class: 'btn btn-small', type: 'button', testid: `cancel-${f.username}`, onClick: async () => { await removeFriend(f.code); refresh(); } }, 'Cancel'))))) : null);
+          h('button', { class: 'btn btn-small', type: 'button', testid: `cancel-${f.username}`, onClick: async () => { report(await removeFriend(f)); refresh(); } }, 'Cancel'))))) : null);
   }
 
   draw();

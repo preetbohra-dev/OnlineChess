@@ -89,6 +89,7 @@ export function createApi({
   google = null, // "Continue with Google" (google-auth.js), when its keys are set up
   usernameSignup = false, // POST /api/register still makes username accounts (tests only)
   friends = null, // friends.js
+  onFriendEvent = null, // (route, user, otherId, result): the live channel's notices
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -340,24 +341,31 @@ export function createApi({
       }
 
       case 'GET /api/friends': {
+        if (!friends) return send(res, 404, { error: 'Not found.' });
         if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
         return send(res, 200, friends.list(user.id));
       }
 
+      // request: ask by code or name · accept: say yes · decline / remove: forget the pair
+      // (decline a request, take back your own, or end a friendship).
       case 'POST /api/friends/request':
       case 'POST /api/friends/accept':
       case 'POST /api/friends/decline':
       case 'POST /api/friends/remove': {
+        if (!friends) return send(res, 404, { error: 'Not found.' });
         if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
         if (!syncBuckets.take(`f${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
         const body = await readJson(req, AUTH_BODY_BYTES);
         if (!body.ok) return send(res, body.status, { error: body.error });
-        const action = route.split('/').pop();
-        const r = action === 'request' ? friends.request(user.id, body.value)
-          : action === 'accept' ? friends.accept(user.id, body.value)
-            : friends.remove(user.id, body.value);
+        const r = {
+          'POST /api/friends/request': () => friends.request(user.id, body.value),
+          'POST /api/friends/accept': () => friends.accept(user.id, body.value),
+          'POST /api/friends/decline': () => friends.remove(user.id, body.value),
+          'POST /api/friends/remove': () => friends.remove(user.id, body.value),
+        }[route]();
         if (!r.ok) return send(res, r.status, { error: r.error });
-        const { ok, ...rest } = r;
+        const { ok, otherId, ...rest } = r;
+        onFriendEvent?.(route, user, otherId, rest);
         return send(res, 200, rest);
       }
 
