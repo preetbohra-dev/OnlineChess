@@ -65,11 +65,19 @@ export function createApi({
   push = null, // { publicKey } when reminders are running
   puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
 }) {
-  // The week's set is computed once per week.
+  // The week's set is chosen once, when the week is first served, and stored: later changes to
+  // the pool (or a server restart) never change a week that has started.
   let cachedSet = null;
   const thisWeek = () => {
     const week = challengeWeek(now());
-    if (cachedSet?.week !== week) cachedSet = weeklySet(week, puzzles);
+    if (cachedSet?.week !== week) {
+      const stored = db.q.weekSet.get(week);
+      if (stored) cachedSet = JSON.parse(stored.data);
+      else {
+        db.q.addWeekSet.run(week, JSON.stringify(weeklySet(week, puzzles)), now());
+        cachedSet = JSON.parse(db.q.weekSet.get(week).data);
+      }
+    }
     return cachedSet;
   };
   const leaderboard = (week, limit) => db.q.leaderboard.all(PUZZLE_POINTS, week, week, limit);

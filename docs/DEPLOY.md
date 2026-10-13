@@ -31,8 +31,11 @@ From Slice 5 onward the server needs the `ws` package. Run `npm ci --omit=dev --
 
 ## Weekly challenge
 
-- The challenge's puzzles come from `server/data/weekly-puzzles.json`, a separate sample of the Lichess database that the server never sends to browsers (the static root is `public/`).
-- It is committed because this repository is private. If the repository is ever made public, move that file out of git (and rebuild it with `node scripts/puzzles.mjs --slot 1 --per-band 50 --out server/data/weekly-puzzles.json`), or the answers become public.
+- The challenge's puzzles come from `~/.jodhpur-studio/data/weekly-puzzles.json` (or `WEEKLY_POOL_FILE`), a separate sample of the Lichess database kept outside the repository, because the source code is public. The server never sends it to browsers.
+- Build it with `node scripts/puzzles.mjs --slot 2 --per-band 50 --out ~/.jodhpur-studio/data/weekly-puzzles.json`. Slot 0 is the public library and slot 1 the retired pool that is now the test fixture (`tests/fixtures/weekly-puzzles.json`), so never use those for the live pool.
+- Each week's set is stored in the database the first time the week is served, so replacing the pool only affects weeks that have not started. Before switching pools mid-week, store the current week from the old pool: `DB_PATH=~/.jodhpur-studio/data/chess.db node scripts/admin.mjs fix-week <old-pool.json>`.
+- The first deploy with an outside pool (October 2026) must fix the running week from the retired pool before the restart: `DB_PATH=~/.jodhpur-studio/data/chess.db node scripts/admin.mjs fix-week tests/fixtures/weekly-puzzles.json`.
+- Without the pool file (or with a broken one) the challenge answers 503 and the rest of the site works.
 
 ## Daily reminders (Web Push)
 

@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, loadPuzzleLibrary, GAME_POOL, weekEnds } from '../../server/challenge.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, loadPuzzleLibrary, GAME_POOL, weekEnds, WEEKLY_POOL_FILE } from '../../server/challenge.js';
 import { createAppServer } from '../../server/index.js';
 import { openDatabase } from '../../server/db.js';
 import { createGame, isValidFen } from '../../public/js/core/rules.js';
 
-const LIB = loadPuzzleLibrary();
+// A test pool (a retired sample). The live pool lives outside the repository.
+const FIXTURE = new URL('../fixtures/weekly-puzzles.json', import.meta.url).pathname;
+const LIB = loadPuzzleLibrary(FIXTURE);
 
 test('weeks start Monday 00:00 UTC; each week has 10 rising puzzles and 3 distinct games, the same for everyone', () => {
   assert.equal(challengeWeek(Date.UTC(2026, 9, 11, 23, 59)), '2026-10-05');
@@ -109,5 +115,73 @@ test('API: week-checked answers, one attempt each, started and timed games, a le
     assert.deepEqual((await get('/api/challenge/leaderboard', nobody)).json.me, { username: 'carlw', rank: null, score: 0 }, 'no points, no rank');
   } finally {
     await app.close();
+  }
+});
+
+test('the live pool is read from outside the repository', () => {
+  if (process.env.WEEKLY_POOL_FILE) return; // overridden (e.g. the e2e server uses the fixture)
+  const repo = path.resolve(new URL('../..', import.meta.url).pathname);
+  assert.equal(path.resolve(WEEKLY_POOL_FILE).startsWith(repo + path.sep), false, WEEKLY_POOL_FILE);
+  assert.equal(WEEKLY_POOL_FILE, path.join(os.homedir(), '.jodhpur-studio', 'data', 'weekly-puzzles.json'));
+});
+
+test('a week keeps the puzzles it started with, even if the pool changes', async () => {
+  const db = openDatabase(':memory:');
+  const listen = async (puzzles) => {
+    const app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, puzzles });
+    await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
+    return app;
+  };
+  const fens = async (app, cookie) => {
+    const url = `http://127.0.0.1:${app.http.address().port}`;
+    return (await (await fetch(`${url}/api/challenge`, { headers: { Cookie: cookie } })).json()).puzzles.map((p) => p.fen);
+  };
+  const first = await listen(LIB);
+  let cookie;
+  let before;
+  try {
+    const url = `http://127.0.0.1:${first.http.address().port}`;
+    const r = await fetch(`${url}/api/register`, { method: 'POST', headers: { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'keepw', password: 'correct horse battery' }) });
+    cookie = r.headers.get('set-cookie').split(';')[0];
+    before = await fens(first, cookie);
+  } finally {
+    await first.close();
+  }
+  const other = LIB.slice().reverse().map((p) => ({ ...p, id: `x${p.id}`, rating: p.rating + 1 }));
+  const second = await listen(other);
+  try {
+    assert.deepEqual(await fens(second, cookie), before, 'stored set wins over the new pool');
+  } finally {
+    await second.close();
+  }
+  assert.equal(db.q.weekSet.get(challengeWeek()) !== undefined, true);
+});
+
+test('without a pool the challenge is unavailable and the rest of the API works', async () => {
+  const app = createAppServer({ db: openDatabase(':memory:'), puzzles: null });
+  await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
+  try {
+    const url = `http://127.0.0.1:${app.http.address().port}`;
+    assert.equal((await fetch(`${url}/api/challenge/leaderboard`)).status, 503);
+    assert.equal((await fetch(`${url}/api/me`)).status, 200);
+  } finally {
+    await app.close();
+  }
+});
+
+test('admin fix-week stores this week once from the given pool', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-fixweek-'));
+  const run = () => execFileSync(process.execPath, ['scripts/admin.mjs', 'fix-week', FIXTURE], { cwd: new URL('../..', import.meta.url).pathname, env: { ...process.env, DB_PATH: path.join(dir, 'chess.db') }, encoding: 'utf8' });
+  try {
+    assert.match(run(), /^Stored the challenge set for the week of \d{4}-\d{2}-\d{2}\./);
+    assert.match(run(), /already has a stored set/);
+    const db = openDatabase(path.join(dir, 'chess.db'));
+    try {
+      assert.deepEqual(JSON.parse(db.q.weekSet.get(challengeWeek()).data), weeklySet(challengeWeek(), LIB));
+    } finally {
+      db.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

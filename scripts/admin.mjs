@@ -2,9 +2,12 @@
 // Account administration for the accounts database (DB_PATH, default ~/.jodhpur-studio/data/chess.db).
 //   node scripts/admin.mjs reset-password <username>   (reads the new password from stdin)
 //   node scripts/admin.mjs delete-user <username>
+//   node scripts/admin.mjs fix-week <pool.json>     (stores this week's challenge set from that pool, if
+//                                                   not stored yet: run before switching pools)
 import { createInterface } from 'node:readline';
 import { openDatabase } from '../server/db.js';
 import { createAccounts } from '../server/auth.js';
+import { challengeWeek, weeklySet, loadPuzzleLibrary } from '../server/challenge.js';
 
 // Read a line from the terminal without echoing it (falls back to a plain line when piped).
 function readSecret() {
@@ -32,14 +35,19 @@ function readSecret() {
 }
 
 const [command, username] = process.argv.slice(2);
-if (!['reset-password', 'delete-user'].includes(command) || !username) {
-  console.error('Usage: node scripts/admin.mjs reset-password <username> | delete-user <username>');
+if (!['reset-password', 'delete-user', 'fix-week'].includes(command) || !username) {
+  console.error('Usage: node scripts/admin.mjs reset-password <username> | delete-user <username> | fix-week <pool.json>');
   process.exit(2);
 }
 const db = openDatabase();
 const accounts = createAccounts(db);
 try {
-  if (command === 'delete-user') {
+  if (command === 'fix-week') {
+    const poolFile = username;
+    const week = challengeWeek();
+    const added = db.q.addWeekSet.run(week, JSON.stringify(weeklySet(week, loadPuzzleLibrary(poolFile))), Date.now()).changes === 1;
+    console.log(added ? `Stored the challenge set for the week of ${week}.` : `The week of ${week} already has a stored set.`);
+  } else if (command === 'delete-user') {
     console.log(accounts.deleteUser(username) ? `Deleted ${username} and their progress.` : `No user ${username}.`);
   } else {
     process.stdout.write(`New password for ${username}: `);
