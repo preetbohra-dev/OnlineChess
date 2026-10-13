@@ -3,6 +3,10 @@ export function createTokenBucket({ rate = 20, burst = 40, now = () => Date.now(
   let tokens = burst;
   let last = now();
   return {
+    // Whether a take() would succeed now, without using a token.
+    peek() {
+      return Math.min(burst, tokens + ((now() - last) / 1000) * rate) >= 1;
+    },
     take() {
       const t = now();
       tokens = Math.min(burst, tokens + ((t - last) / 1000) * rate);
@@ -38,6 +42,9 @@ export function createBucketMap({ rate, burst, max = 10_000, now = () => Date.no
       buckets.set(key, b); // most recently used last
       while (buckets.size > max) buckets.delete(buckets.keys().next().value);
       return b.take();
+    },
+    peek(key) {
+      return buckets.get(key)?.peek() ?? true;
     },
     get size() { return buckets.size; },
   };

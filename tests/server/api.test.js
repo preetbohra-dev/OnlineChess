@@ -7,7 +7,7 @@ import { emptyProfile } from '../../public/js/core/progression.js';
 let app, base, db;
 test.before(async () => {
   db = openDatabase(':memory:');
-  app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
+  app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${app.http.address().port}`;
 });
@@ -76,7 +76,7 @@ test('state sync: needs a session, merges what each device sends, never trusts j
 });
 
 test('sign-in attempts are rate-limited per address', async () => {
-  const limited = createAppServer({ db: openDatabase(':memory:'), authRate: { rate: 0.001, burst: 3 } });
+  const limited = createAppServer({ usernameSignup: true, db: openDatabase(':memory:'), authRate: { rate: 0.001, burst: 3 } });
   await new Promise((r) => limited.http.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${limited.http.address().port}`;
   const statuses = [];
@@ -89,7 +89,7 @@ test('sign-in attempts are rate-limited per address', async () => {
 });
 
 test('state uploads are rate-limited per account', async () => {
-  const limited = createAppServer({ db: openDatabase(':memory:'), authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 0.001, burst: 2 } });
+  const limited = createAppServer({ usernameSignup: true, db: openDatabase(':memory:'), authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 0.001, burst: 2 } });
   await new Promise((r) => limited.http.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${limited.http.address().port}`;
   const headers = { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' };
@@ -111,7 +111,7 @@ test('without a database the API says so', async () => {
 
 test('push: key, subscribe (validated, signed in only) and unsubscribe', async () => {
   const pdb = openDatabase(':memory:');
-  const papp = createAppServer({ db: pdb, push: { publicKey: 'PUBKEY' }, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
+  const papp = createAppServer({ usernameSignup: true, db: pdb, push: { publicKey: 'PUBKEY' }, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
   await new Promise((r) => papp.http.listen(0, '127.0.0.1', r));
   const url = `http://127.0.0.1:${papp.http.address().port}`;
   const headers = { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' };
@@ -160,4 +160,17 @@ test('delete account: needs the password, removes everything, signs out', async 
   assert.equal(db.q.state.get(id), undefined, 'synced progress is gone');
   assert.equal((await call('POST', '/api/login', { body: { username: 'gonegone', password: PW } })).status, 401);
   assert.equal((await call('POST', '/api/register', { body: { username: 'gonegone', password: PW } })).status, 201, 'the name is free again');
+});
+
+test('new username accounts are no longer made: sign up with email or Google', async () => {
+  const plain = createAppServer({ db: openDatabase(':memory:') });
+  await new Promise((r) => plain.http.listen(0, '127.0.0.1', r));
+  try {
+    const url = `http://127.0.0.1:${plain.http.address().port}`;
+    const r = await fetch(`${url}/api/register`, { method: 'POST', headers: { Origin: url, 'X-OC-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'newperson', password: PW }) });
+    assert.equal(r.status, 410);
+    assert.equal((await r.json()).error, 'Sign up with your email or with Google.');
+  } finally {
+    await plain.close();
+  }
 });

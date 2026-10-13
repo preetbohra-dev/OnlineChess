@@ -495,6 +495,18 @@ html { scroll-padding-top: 72px; }
 /* Account */
 .account-form { display: flex; flex-direction: column; gap: 10px; max-width: 360px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.field .muted.small { font-weight: 400; }
+.btn-link { background: none; border: 0; padding: 4px 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.btn-link:hover { color: var(--accent-strong, var(--accent)); }
+.account-alt { margin: var(--space-2) 0 0; color: var(--muted); }
+.account-nudge { padding: var(--space-3); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; }
+.auth-link .btn { margin-top: var(--space-3); }
+.btn-google { display: inline-flex; align-items: center; gap: 10px; background: #fff; color: #1f1f1f; border: 1px solid #747775; font-weight: 600; text-decoration: none; max-width: 360px; justify-content: center; }
+.btn-google:hover { background: #f2f2f2; }
+.btn-google:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.account-start .btn-google { width: 100%; box-sizing: border-box; }
+.or-line { display: flex; align-items: center; gap: var(--space-2); max-width: 360px; color: var(--muted); margin: var(--space-3) 0; }
+.or-line::before, .or-line::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .form-error { margin: 0; color: var(--danger); }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
 

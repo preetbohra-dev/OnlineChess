@@ -13,7 +13,7 @@ const PW = 'correct horse battery';
 let app, base, db;
 test.before(async () => {
   db = openDatabase(':memory:');
-  app = createAppServer({ db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
+  app = createAppServer({ usernameSignup: true, db, authRate: { rate: 1000, burst: 1000 }, syncRate: { rate: 1000, burst: 1000 } });
   await new Promise((r) => app.http.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${app.http.address().port}`;
 });

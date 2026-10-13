@@ -1,10 +1,9 @@
-import { test, expect } from './helpers.js';
+import { test, expect, signUp, uniqueName } from './helpers.js';
 
 // Reminders need the service worker; the browser's push service is replaced by a stand-in,
 // so nothing leaves the machine (the test server also runs push in dry-run mode).
 test.use({ serviceWorkers: 'allow' });
 
-const PW = 'correct horse battery';
 
 test('a signed-in player turns daily reminders on and off', async ({ page, context }) => {
   await context.grantPermissions(['notifications']);
@@ -22,10 +21,7 @@ test('a signed-in player turns daily reminders on and off', async ({ page, conte
   });
   await page.goto('/#/profile');
   await expect(page.getByTestId('reminders')).toHaveCount(0); // guests: no reminders
-  await page.getByTestId('btn-account-mode').click();
-  await page.getByTestId('account-username').fill(`r${Date.now().toString(36)}`.slice(0, 20));
-  await page.getByTestId('account-password').fill(PW);
-  await page.getByTestId('btn-account-submit').click();
+  await signUp(page, uniqueName('r'));
   await expect(page.getByTestId('reminders')).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.getByTestId('reminder-hour').selectOption('21');

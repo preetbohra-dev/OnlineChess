@@ -30,6 +30,14 @@
                 <data android:scheme="https" android:host="chess.solankidigitaldrafts.com" android:path="/" />
             </intent-filter>
 
+            <!-- The end of "Continue with Google": the server hands the app a one-time code. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.solankidigitaldrafts.chess" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider

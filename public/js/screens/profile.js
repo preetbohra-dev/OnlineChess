@@ -1,6 +1,6 @@
 // The profile page (rank, XP, records, achievements) and the dashboard shown on the home page.
 import { h } from '../ui/dom.js';
-import { confirmDialog, openModal } from '../ui/modal.js';
+import { confirmDialog } from '../ui/modal.js';
 import { loadProfile, resetProfile } from '../store/profile.js';
 import { rankFor, ACHIEVEMENTS, currentStreak, dayKey } from '../core/progression.js';
 import { PERSONAS } from '../data/personas.js';
@@ -10,8 +10,8 @@ import { totalStars } from '../core/campaign.js';
 import { questView } from '../core/quests.js';
 import { dueToday, loadDeck } from '../store/weakspots.js';
 import { canInstall, install } from '../ui/pwa.js';
-import { currentUser, lastSynced, login, register, logout, syncNow, deleteAccount } from '../store/account.js';
-import { toast } from '../ui/toast.js';
+import { currentUser } from '../store/account.js';
+import { accountSection } from '../ui/account-panel.js';
 import { bus } from '../core/events.js';
 import { fill } from '../ui/dom.js';
 import { pushSupported, currentSubscription, enableReminders, disableReminders, savedHour, REMINDER_HOURS } from '../ui/reminders.js';
@@ -55,100 +55,6 @@ function remindersSection() {
 }
 
 // Sign in / create an account, or (signed in) who you are and when progress last synced.
-function accountSection() {
-  const section = h('section', { class: 'menu-section account', testid: 'account', 'aria-labelledby': 'account-heading' });
-  let mode = 'login';
-  let error = '';
-  let busy = false;
-  let typedName = ''; // kept when the form is drawn again after an error
-
-  function form() {
-    const username = h('input', { class: 'text-input', type: 'text', testid: 'account-username', autocomplete: 'username', maxlength: 20, required: true, 'aria-label': 'Username', value: typedName });
-    const password = h('input', { class: 'text-input', type: 'password', testid: 'account-password', autocomplete: mode === 'login' ? 'current-password' : 'new-password', minlength: 10, maxlength: 200, required: true, 'aria-label': 'Password' });
-    return h('form', {
-      class: 'account-form',
-      onSubmit: async (e) => {
-        e.preventDefault();
-        if (busy) return;
-        busy = true;
-        error = '';
-        typedName = username.value.trim();
-        render();
-        const r = await (mode === 'login' ? login : register)(typedName, password.value);
-        busy = false;
-        error = r.ok ? '' : r.error;
-        render();
-        if (!r.ok) section.querySelector('[data-testid="account-password"]')?.focus();
-      },
-    },
-    h('label', { class: 'field' }, h('span', {}, mode === 'login' ? 'Username' : 'Username (shown on the weekly leaderboard)'), username),
-    h('label', { class: 'field' }, h('span', {}, mode === 'login' ? 'Password' : 'Password (at least 10 characters)'), password),
-    error ? h('p', { class: 'form-error', role: 'alert', testid: 'account-error' }, error) : null,
-    h('div', { class: 'lesson-actions' },
-      h('button', { class: 'btn btn-primary', type: 'submit', testid: 'btn-account-submit', disabled: busy }, busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'),
-      h('button', { class: 'btn', type: 'button', testid: 'btn-account-mode', onClick: () => { mode = mode === 'login' ? 'register' : 'login'; error = ''; render(); } },
-        mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in')));
-  }
-
-  function render() {
-    const user = currentUser();
-    const synced = lastSynced();
-    fill(section,
-      h('h2', { class: 'section-label', id: 'account-heading' }, 'Account'),
-      user
-        ? [h('p', { testid: 'account-user' }, 'Signed in as ', h('strong', {}, user.username), '. Your progress syncs to every device you sign in on.'),
-          h('p', { class: 'muted small', testid: 'account-synced' }, synced ? `Last synced ${synced.toLocaleTimeString()}.` : 'Syncing…'),
-          h('div', { class: 'lesson-actions' },
-            h('button', { class: 'btn', type: 'button', testid: 'btn-sync', onClick: () => syncNow() }, 'Sync now'),
-            h('button', { class: 'btn', type: 'button', testid: 'btn-logout', onClick: () => logout() }, 'Sign out'),
-            h('button', { class: 'btn btn-small btn-danger-text', type: 'button', testid: 'btn-delete-account', onClick: () => confirmDelete(user.username) }, 'Delete account'))]
-        : [h('p', { class: 'muted' }, 'Playing as a guest: progress is saved on this device. Sign in to keep it safe and use it on other devices — this device\'s progress is added to the account.'),
-          form()]);
-  }
-  render();
-  return { el: section, destroy: () => {} };
-}
-
-// Deleting the account asks for the password (so a borrowed, signed-in phone cannot do it).
-function confirmDelete(username) {
-  const password = h('input', { class: 'text-input', type: 'password', testid: 'delete-password', autocomplete: 'current-password', maxlength: 200, 'aria-label': 'Password' });
-  const clear = h('input', { type: 'checkbox', testid: 'delete-clear-device' });
-  const error = h('p', { class: 'form-error', role: 'alert', testid: 'delete-error', hidden: true });
-  let busy = false;
-  const modal = openModal({
-    title: 'Delete your account?',
-    testid: 'delete-account-dialog',
-    body: [
-      h('p', {}, `This permanently deletes the account `, h('strong', {}, username), ', its synced progress, reminders and weekly challenge scores. It cannot be undone.'),
-      h('label', { class: 'field' }, h('span', {}, 'Your password'), password),
-      h('label', { class: 'check' }, clear, ' Also clear the progress saved on this device'),
-      error,
-    ],
-    actions: [
-      { label: 'Cancel', testid: 'btn-cancel' },
-      {
-        label: 'Delete account', testid: 'btn-confirm-delete', danger: true, keepOpen: true,
-        onClick: async () => {
-          if (busy) return;
-          busy = true;
-          const r = await deleteAccount(password.value, { clearDevice: clear.checked });
-          busy = false;
-          if (!r.ok) {
-            error.textContent = r.error;
-            error.hidden = false;
-            password.focus();
-            return;
-          }
-          modal.close('action');
-          toast('Your account was deleted.');
-        },
-      },
-    ],
-  });
-  password.addEventListener('keydown', (e) => { if (e.key === 'Enter') modal.el.querySelector('[data-testid="btn-confirm-delete"]')?.click(); });
-  requestAnimationFrame(() => password.focus());
-}
-
 // This week's quests, with progress bars.
 function questList(profile) {
   return h('ul', { class: 'quest-list', testid: 'quests' }, questView(profile.quests).map((q) => h('li', { class: `quest${q.done ? ' done' : ''}`, testid: `quest-${q.id}`, dataset: { done: String(q.done) } },

@@ -8,14 +8,17 @@ import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { appLinkFiles } from './app-links.js';
-import { createApi } from './api.js';
+import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
+import { createEmailAuth } from './email-auth.js';
+import { createGoogleAuth, APP_RETURN } from './google-auth.js';
+import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
 import { startReminders } from './push.js';
 import { loadPuzzleLibrary, WEEKLY_POOL_FILE } from './challenge.js';
 import { createRoomManager } from './rooms.js';
 import { parseClientMessage, MAX_MESSAGE_BYTES } from './protocol.js';
-import { createTokenBucket, createConnectionCounter } from './rate-limit.js';
+import { createTokenBucket, createConnectionCounter, createBucketMap, addressKey } from './rate-limit.js';
 
 // A daily snapshot of the accounts database (VACUUM INTO), keeping the newest seven.
 function scheduleBackups(db, dir, keep = 7) {
@@ -97,13 +100,60 @@ export function createAppServer({
   push = null, // { publicKey } when daily reminders are running
   puzzles = undefined, // the weekly challenge's puzzle library (default: WEEKLY_POOL_FILE; null: none)
   appLinks = appLinkFiles(), // /.well-known files that let site links open the apps (server/app-links.js)
+  // Email sign-in (server/mail.js, server/email-auth.js): off unless a Resend key or MAIL=dry.
+  mailer = createMailer({ apiKey: loadAuthEnv().RESEND_API_KEY ?? '' }),
+  publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
+  mailLimits = createMailLimits(),
+  usernameSignup = false, // the old username + password sign-up (tests only; players sign up with email or Google)
+  // "Continue with Google" (server/google-auth.js): on when the client id and secret are set.
+  googleKeys = (({ GOOGLE_CLIENT_ID: id, GOOGLE_CLIENT_SECRET: secret }) => (id && secret ? { clientId: id, clientSecret: secret } : null))(loadAuthEnv()),
+  googleFetch = globalThis.fetch, // tests replace Google's endpoints
+  testHooks = process.env.TEST_HOOKS === '1', // test runs: expose the dry-run outbox
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
   const apps = new Set(appOrigins);
   const fromApp = (req) => typeof req.headers.origin === 'string' && apps.has(req.headers.origin);
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const emailAuth = db && mailer.enabled ? createEmailAuth({ db, accounts, mailer, mailLimits, origin: publicOrigin }) : null;
+  // The dry-run outbox holds real codes: readable only by test runs on an in-memory database.
+  const inMemory = Boolean(db) && !(db.raw.location?.() ?? '');
+  const outbox = testHooks && process.env.MAIL === 'dry' && inMemory ? mailer.outbox : null;
+  const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
+  const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
+  // name to a new account) or explains what went wrong.
+  const redirect = (res, location, cookies = []) => {
+    res.writeHead(302, { Location: location, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) });
+    res.end();
+  };
+  async function handleGoogle(req, res, pathname) {
+    const secure = !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
+    if (!google) return redirect(res, '/#/welcome?error=off');
+    if (pathname === '/auth/google/start') {
+      if (!googleStarts.take(addressKey(clientAddress(req)))) return redirect(res, '/#/welcome?error=busy');
+      const query = new URL(req.url, 'http://x').searchParams;
+      const token = readCookie(req, SESSION_COOKIE);
+      const sessionUser = token ? accounts.userForToken(token) : null;
+      let linkUserId = null;
+      if (query.has('link')) {
+        linkUserId = google.useLinkTicket(query.get('link'));
+        if (!linkUserId || linkUserId !== sessionUser?.id) return redirect(res, '/#/welcome?error=expired');
+      }
+      const appChallenge = query.get('app'); // started by an app (its PKCE challenge)
+      if (appChallenge !== null && (!/^[\w-]{43}$/.test(appChallenge) || linkUserId)) return redirect(res, '/#/welcome?error=bad'); // "Connect Google" is website only
+      const flow = google.start({ linkUserId, appChallenge });
+      if (!flow) return redirect(res, '/#/welcome?error=busy');
+      return redirect(res, flow.location, [google.stateCookie(flow.state, secure)]);
+    }
+    const sessionToken = readCookie(req, SESSION_COOKIE);
+    const r = await google.callback(req, new URL(req.url, 'http://x').searchParams, sessionToken ? accounts.userForToken(sessionToken)?.id ?? null : null);
+    const clear = google.clearStateCookie(secure);
+    if (!r.ok) return redirect(res, `/#/welcome?error=${r.reason}`, [clear]);
+    if (r.app) return redirect(res, `${APP_RETURN}?code=${r.appCode}`, [clear]); // back into the app
+    return redirect(res, r.created ? '/#/welcome?new=1' : '/#/welcome', [clear, sessionCookie(req, r.token, 30 * 86_400)]);
+  }
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
@@ -111,6 +161,10 @@ export function createAppServer({
     if (Object.hasOwn(appLinks, pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       res.end(req.method === 'HEAD' ? undefined : appLinks[pathname]);
+      return;
+    }
+    if ((pathname === '/auth/google/start' || pathname === '/auth/google/callback') && req.method === 'GET') {
+      handleGoogle(req, res, pathname).catch(() => fail(res));
       return;
     }
     if (pathname.startsWith('/api/')) {
@@ -199,6 +253,7 @@ export function createAppServer({
     manager.gc();
     attempts.clear(); // buckets refill within seconds; dropping them bounds memory
     accounts?.pruneSessions();
+    emailAuth?.prune();
   }, GC_MS);
   heartbeat.unref();
   gc.unref();
@@ -207,6 +262,7 @@ export function createAppServer({
     http: server,
     rooms: manager,
     accounts,
+    mailer,
     serviceWorker: serveStatic.serviceWorker,
     close() {
       clearInterval(heartbeat);
@@ -231,6 +287,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   };
   // Accounts live in SQLite outside the repository; DB_PATH=off runs without them.
   const dbPath = process.env.DB_PATH || DEFAULT_DB_PATH;
+  // Keeping emails in memory (MAIL=dry) would swallow real players' sign-in codes: tests only.
+  if (process.env.MAIL === 'dry' && dbPath !== ':memory:') throw new Error('MAIL=dry is for test runs (DB_PATH=:memory:) only');
   const db = dbPath === 'off' ? null : openDatabase(dbPath);
   if (db && dbPath !== ':memory:') scheduleBackups(db, path.join(path.dirname(dbPath), 'backups'));
   // Daily reminders need accounts (to know whether today's puzzle is solved). PUSH=off disables them.
@@ -242,6 +300,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     db,
     push: reminders ? { publicKey: reminders.publicKey } : null,
     authRate: { rate: 0.2, burst: intEnv('AUTH_BURST', 10) },
+    mailLimits: createMailLimits({ perInbox: intEnv('MAIL_INBOX_BURST', 3), perAddress: intEnv('MAIL_ADDRESS_BURST', 20) }),
     syncRate: { rate: 0.5, burst: intEnv('SYNC_BURST', 5) },
     rooms: { maxRoomsPerAddress: intEnv('ROOMS_PER_ADDRESS', 5), createsPerHour: intEnv('ROOM_CREATES_PER_HOUR', 20) },
     connectRate: { rate: 1, burst: intEnv('WS_CONNECT_BURST', 10) },

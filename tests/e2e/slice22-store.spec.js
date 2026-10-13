@@ -1,16 +1,8 @@
-import { test, expect } from './helpers.js';
+import { test, expect, signUp, signInWithPassword } from './helpers.js';
 
 const PW = 'correct horse battery';
 const unique = () => `d${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`.slice(0, 20);
 
-async function signUp(page, username) {
-  await page.goto('/#/profile');
-  await page.getByTestId('btn-account-mode').click();
-  await page.getByTestId('account-username').fill(username);
-  await page.getByTestId('account-password').fill(PW);
-  await page.getByTestId('btn-account-submit').click();
-  await expect(page.getByTestId('account-user')).toContainText(username);
-}
 
 test('the privacy policy and support page are linked from home and settings', async ({ page }) => {
   await page.goto('/#/');
@@ -45,24 +37,22 @@ test('a player deletes their account with their password, and can clear this dev
   await page.getByTestId('delete-clear-device').check();
   await page.getByTestId('btn-confirm-delete').click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByTestId('account-username')).toBeVisible();
+  await expect(page.getByTestId('account-email')).toBeVisible();
   await expect(page.getByTestId('account-user')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('oc.v1.lessons.completed'))).toBeNull();
 
   // The account is gone on the server too.
-  await page.getByTestId('account-username').fill(name);
-  await page.getByTestId('account-password').fill(PW);
-  await page.getByTestId('btn-account-submit').click();
-  await expect(page.getByTestId('account-error')).toHaveText('Wrong username or password.');
+  await signInWithPassword(page, name);
+  await expect(page.getByTestId('account-error')).toHaveText('Wrong email, username or password.');
 });
 
-test('offensive usernames are refused at sign-up', async ({ page }) => {
+test('offensive names are refused at sign-up', async ({ page }) => {
   await page.goto('/#/profile');
-  await page.getByTestId('btn-account-mode').click();
-  await page.getByTestId('account-username').fill('sh1t_head');
-  await page.getByTestId('account-password').fill(PW);
-  await page.getByTestId('btn-account-submit').click();
-  await expect(page.getByTestId('account-error')).toHaveText('Please choose a different username.');
+  await page.getByTestId('btn-create-account').click();
+  await page.getByTestId('signup-email').fill('rude@example.com');
+  await page.getByTestId('signup-name').fill('sh1t_head');
+  await page.getByTestId('btn-signup-submit').click();
+  await expect(page.getByTestId('account-error')).toHaveText('Please choose a different name.');
 });
 
 test('signed-in players can report a name on the leaderboard, but not their own', async ({ page, browser }) => {

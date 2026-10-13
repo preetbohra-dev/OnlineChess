@@ -4,7 +4,11 @@
 //   GET /api/push/key · POST /api/push/subscribe {subscription, tz, hour} · POST /api/push/unsubscribe {endpoint}
 //   GET /api/challenge · POST /api/challenge/answer {index, move} · POST /api/challenge/game {slot, moves}
 //   GET /api/challenge/leaderboard
-//   POST /api/account/delete {password} · POST /api/report {username}
+//   POST /api/account/delete {password | code} · POST /api/report {username}
+//   Email accounts (email-auth.js): POST /api/signup {email, username, password?} ·
+//   POST /api/auth/request {email} · POST /api/auth/code {email, code, password?} ·
+//   POST /api/auth/link {token, password?} · GET /api/account · POST /api/account/email {email, password | code} ·
+//   POST /api/account/name {username} · POST /api/account/password {current | code, password}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
 // SameSite=Lax session cookie). The apps call from their own origins (allowed by index.js) and
 // authenticate with `Authorization: Bearer <token>`, which no other site can send. Sign-in
@@ -14,6 +18,7 @@ import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
 import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, PUZZLE_POINTS, MIN_MS_PER_PLY } from './challenge.js';
 import { USERNAME } from './auth.js';
+import { nameProblem } from './names.js';
 
 export const SESSION_COOKIE = 'oc_session';
 const AUTH_BODY_BYTES = 2 * 1024;
@@ -34,7 +39,13 @@ function send(res, status, body, headers = {}) {
   res.end(json);
 }
 
-function readCookie(req, name) {
+// The session cookie: HttpOnly, SameSite=Lax, and Secure except on plain-http local development.
+export function sessionCookie(req, token, maxAge) {
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
+  return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
+}
+
+export function readCookie(req, name) {
   for (const part of (req.headers.cookie ?? '').split(';')) {
     const [k, ...v] = part.trim().split('=');
     if (k === name) return v.join('=');
@@ -74,6 +85,10 @@ export function createApi({
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
   push = null, // { publicKey } when reminders are running
   puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
+  emailAuth = null, // email sign-up and sign-in (email-auth.js), when email is set up
+  google = null, // "Continue with Google" (google-auth.js), when its keys are set up
+  usernameSignup = false, // POST /api/register still makes username accounts (tests only)
+  outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
   // the pool (or a server restart) never change a week that has started.
@@ -106,11 +121,7 @@ export function createApi({
   const hashBucket = createTokenBucket(hashRate);
   const addressOf = (req) => addressKey(clientAddress(req));
 
-  // Secure cookies everywhere except plain-http local development.
-  const cookie = (req, token, maxAge) => {
-    const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
-    return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
-  };
+  const cookie = sessionCookie;
   // The website gets an HttpOnly cookie; an app gets the token in the body and keeps it itself.
   const signedIn = (req, res, result, status = 200) => (isApp(req)
     ? send(res, status, { user: { username: result.user.username }, token: result.token })
@@ -133,6 +144,9 @@ export function createApi({
         return send(res, 200, { user: user ? { username: user.username } : null });
 
       case 'POST /api/register':
+        // New accounts sign up with an email or Google; existing username accounts still sign in.
+        if (!usernameSignup) return send(res, 410, { error: 'Sign up with your email or with Google.' });
+      // falls through
       case 'POST /api/login': {
         if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
         if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
@@ -265,7 +279,11 @@ export function createApi({
         if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
         const body = await readJson(req, AUTH_BODY_BYTES);
         if (!body.ok) return send(res, body.status, { error: body.error });
-        const result = await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
+        // With a password, the password; without one, a sign-in code sent to the account's email.
+        const passwordLess = !db.q.userById.get(user.id)?.has_password;
+        const result = passwordLess && emailAuth
+          ? (emailAuth.proveEmail(user, body.value?.code) ? (db.q.deleteUser.run(user.id), { ok: true }) : { ok: false, status: 401, error: 'That code is wrong or has expired.' })
+          : await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
         if (!result.ok) return send(res, result.status, { error: result.error });
         boardCache.at = 0; // the player leaves the leaderboard at once
         return signedOut(req, res);
@@ -289,6 +307,107 @@ export function createApi({
           boardCache.at = 0;
         }
         return send(res, 200, { ok: true });
+      }
+
+      case 'GET /api/account': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        const row = db.q.userById.get(user.id);
+        const providers = db.q.identitiesForUser.all(user.id).map((i) => i.provider);
+        return send(res, 200, { username: row.username, email: row.email ?? null, hasPassword: Boolean(row.has_password), google: providers.includes('google') });
+      }
+
+      // "Connect Google": a one-time ticket for /auth/google/start?link=… (CSRF-checked here).
+      case 'POST /api/auth/google/link': {
+        if (!google) return send(res, 503, { error: 'Google sign-in is not available.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        const ticket = google.linkTicket(user.id);
+        if (!ticket) return send(res, 503, { error: 'Busy. Try again in a moment.' });
+        return send(res, 200, { url: `/auth/google/start?link=${ticket}` });
+      }
+
+      // The app finishes "Continue with Google": its one-time code and PKCE verifier for a session.
+      case 'POST /api/auth/google/app': {
+        if (!google) return send(res, 503, { error: 'Google sign-in is not available.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const r = google.exchangeAppCode(body.value?.code, body.value?.verifier);
+        if (!r) return send(res, 400, { error: 'Google sign-in did not finish. Please try again.' });
+        const row = db.q.userById.get(r.userId);
+        boardCache.at = 0;
+        return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
+      }
+
+      // Which ways of signing in this server offers (the page shows only those).
+      case 'GET /api/auth/providers':
+        return send(res, 200, { email: Boolean(emailAuth), google: Boolean(google) });
+
+      case 'POST /api/signup':
+      case 'POST /api/auth/request':
+      case 'POST /api/auth/code':
+      case 'POST /api/auth/link':
+      case 'POST /api/account/email': {
+        if (!emailAuth) return send(res, 503, { error: 'Email sign-in is not available yet.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        const hashes = route !== 'POST /api/auth/request'; // these may hash a password
+        if (hashes && !hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const v = body.value ?? {};
+        const address = addressOf(req);
+        if (route === 'POST /api/account/email') {
+          if (!user) return send(res, 401, { error: 'Sign in first.' });
+          const r = await emailAuth.addEmail(user, v, address);
+          return r.ok ? send(res, 202, { ok: true }) : send(res, r.status, { error: r.error });
+        }
+        if (route === 'POST /api/signup' || route === 'POST /api/auth/request') {
+          const r = route === 'POST /api/signup' ? emailAuth.signup(v, address) : emailAuth.request(v, address);
+          // The same answer whether or not the email has an account: "check your email".
+          return r.ok ? send(res, 202, { ok: true }) : send(res, r.status, { error: r.error });
+        }
+        const r = route === 'POST /api/auth/code' ? await emailAuth.useCode(v, user) : await emailAuth.useLink(v, user);
+        if (!r.ok) return send(res, r.status, { error: r.error });
+        if (!r.token) return send(res, 200, { user: { username: r.user.username }, emailAdded: true });
+        boardCache.at = 0;
+        return isApp(req)
+          ? send(res, 200, { user: { username: r.user.username }, token: r.token, created: r.created, suggestedName: r.suggestedName })
+          : send(res, 200, { user: { username: r.user.username }, created: r.created, suggestedName: r.suggestedName }, { 'Set-Cookie': cookie(req, r.token, 30 * 86_400) });
+      }
+
+      case 'POST /api/account/name': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`n${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const name = body.value?.username;
+        if (typeof name !== 'string' || !USERNAME.test(name)) return send(res, 400, { error: 'Names are 3–20 letters, digits, - or _.' });
+        if (nameProblem(name)) return send(res, 400, { error: 'Please choose a different name.' });
+        const taken = db.q.userByName.get(name);
+        if (taken && taken.id !== user.id) return send(res, 409, { error: 'That name is taken.' });
+        db.q.setUsername.run(name, user.id);
+        boardCache.at = 0;
+        return send(res, 200, { user: { username: name } });
+      }
+
+      case 'POST /api/account/password': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        // An account without a password sets its first one with a code sent to its email.
+        const proven = typeof body.value?.code === 'string' && Boolean(emailAuth?.proveEmail(user, body.value.code));
+        const result = await accounts.changePassword(user.id, body.value?.current, body.value?.password, addressOf(req), { proven });
+        if (!result.ok) return send(res, result.status, { error: result.error });
+        accounts.endOtherSessions(user.id, token);
+        return send(res, 200, { ok: true });
+      }
+
+      case 'GET /api/_test/outbox': {
+        // Test runs only (MAIL=dry with TEST_HOOKS=1): the emails "sent" to one address.
+        if (!outbox) return send(res, 404, { error: 'Not found.' });
+        const to = new URL(req.url, 'http://x').searchParams.get('to') ?? '';
+        return send(res, 200, { emails: outbox.filter((m) => m.to === to.toLowerCase()).slice(-5) });
       }
 
       default:

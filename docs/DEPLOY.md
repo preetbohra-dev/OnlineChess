@@ -49,3 +49,11 @@ From Slice 5 onward the server needs the `ws` package. Run `npm ci --omit=dev --
 - On macOS, a `127.0.0.1:3000` listener silently takes traffic away from a `*:3000` listener. This is how a stray chess dev server once hijacked `tambola.solankidigitaldrafts.com`.
 - Never run chess dev servers on 3000. `npm start` now defaults to 3200. If the launchd agent already holds 3200, a second server fails with `EADDRINUSE` instead of shadowing it.
 - Tests use 4173 (Playwright) and ad-hoc ports above 4300.
+
+## Sign-in emails and Google (Plan 4)
+
+- Keys live in `~/.jodhpur-studio/secrets/chess-auth.env` (mode 600, never in the repository): `RESEND_API_KEY` (a Resend key with sending access only), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. The server reads them at start: restart after changing them. Without a key, that sign-in method is switched off and the page does not offer it.
+- Emails come from `no-reply@chess.solankidigitaldrafts.com`. Its DKIM, SPF and bounce records are in Cloudflare DNS, as Resend shows them. Do not delete them.
+- The Google OAuth client (Google Cloud project "OnlineChess", type Web application) must list the redirect URI `https://chess.solankidigitaldrafts.com/auth/google/callback`. The apps return through `com.solankidigitaldrafts.chess://auth`, which needs no Google setting.
+- New username accounts are switched off (`POST /api/register` answers 410). Existing username accounts still sign in and are asked to add an email.
+- `MAIL=dry`, `TEST_HOOKS` and `AUTH_ENV_FILE=/nonexistent…` are for test runs only. Never set them on the live server.

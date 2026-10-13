@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "test": "node --test \"tests/{unit,server,content,engine}/**/*.test.js\"",
+    "test": "AUTH_ENV_FILE=/nonexistent/chess-auth.env node --test \"tests/{unit,server,content,engine}/**/*.test.js\"",
     "test:e2e": "playwright test --project=desktop && playwright test --project=mobile",
     "vendor": "node scripts/vendor.mjs",
     "postinstall": "node scripts/vendor.mjs",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@capacitor/android": "8.5.2",
     "@capacitor/app": "8.1.1",
+    "@capacitor/browser": "8.0.4",
     "@capacitor/cli": "8.5.2",
     "@capacitor/core": "8.5.2",
     "@capacitor/haptics": "8.0.2",

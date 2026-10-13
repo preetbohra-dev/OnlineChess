@@ -6,6 +6,8 @@ import { bus } from '../core/events.js';
 import { SYNC_KEYS, mergeStates } from '../core/sync.js';
 import { emptyProfile } from '../core/progression.js';
 import { apiFetch, setAppToken } from '../net/api.js';
+import { googleInBrowser } from '../net/native.js';
+import { SITE } from '../net/platform.js';
 import { currentSubscription } from '../ui/reminders.js';
 
 const SYNC_DELAY_MS = 4000;
@@ -25,6 +27,7 @@ async function api(method, path, body) {
 
 function setUser(user) {
   current = user;
+  if (!user) justCreated = false;
   if (!user) setAppToken(null); // inside the apps, signing out (or a dead session) drops the token
   bus.emit('account:change', { user });
 }
@@ -40,22 +43,71 @@ export async function refreshMe() {
   return current;
 }
 
-async function signIn(path, username, password, store) {
+const OFFLINE = { ok: false, error: 'No connection. Try again when you are online.' };
+
+// A request that does not sign in. -> { ok: true, json } | { ok: false, error }
+async function ask(method, path, body) {
   let r;
-  try {
-    r = await api('POST', path, { username, password });
-  } catch {
-    return { ok: false, error: 'No connection. Try again when you are online.' };
-  }
-  if (!r.ok) return { ok: false, error: r.json.error ?? 'Something went wrong.' };
-  if (r.json.token) setAppToken(r.json.token); // only the apps get one
-  setUser(r.json.user);
-  await syncNow(store);
-  return { ok: true };
+  try { r = await api(method, path, body); } catch { return OFFLINE; }
+  return r.ok ? { ok: true, json: r.json } : { ok: false, status: r.status, error: r.json.error ?? 'Something went wrong.' };
 }
 
-export const register = (username, password, store = appStore()) => signIn('/api/register', username, password, store);
-export const login = (username, password, store = appStore()) => signIn('/api/login', username, password, store);
+// Set when a sign-in created an account and picked its name, so the page offers to choose one
+// (until the player saves a name or keeps this one; the page may redraw several times meanwhile).
+let justCreated = false;
+export const nameWanted = () => justCreated && Boolean(current);
+// After "Continue with Google" made a new account (the server says so on the way back).
+export function markNameWanted() { justCreated = true; }
+export function nameChosen() { justCreated = false; }
+
+// A request that signs in when it succeeds (the session cookie, or the app's token).
+async function signIn(path, body, store) {
+  const r = await ask('POST', path, body);
+  if (!r.ok) return r;
+  if (r.json.emailAdded) return { ok: true, emailAdded: true };
+  if (r.json.token) setAppToken(r.json.token); // only the apps get one
+  justCreated = Boolean(r.json.suggestedName);
+  setUser(r.json.user); // pages redraw here
+  await syncNow(store);
+  return { ok: true, created: Boolean(r.json.created) };
+}
+
+// `username` may be the account's email.
+export const login = (username, password, store = appStore()) => signIn('/api/login', { username, password }, store);
+
+// Email accounts. Sign-up and code requests always answer "check your email".
+export const signUpWithEmail = (email, username) => ask('POST', '/api/signup', { email, username });
+export const requestCode = (email) => ask('POST', '/api/auth/request', { email });
+export const useCode = (email, code, password, store = appStore()) => signIn('/api/auth/code', { email, code, ...(password ? { password } : {}) }, store);
+export const useLink = (token, store = appStore()) => signIn('/api/auth/link', { token }, store);
+// `proof`: { password } or { code } (a code sent to the account's current email).
+export const addEmail = (email, proof = {}) => ask('POST', '/api/account/email', { email, ...proof });
+export const loadAccount = () => ask('GET', '/api/account');
+// "Continue with Google" inside the apps: the phone's browser, then the one-time code back here.
+export async function signInWithGoogleInApp(store = appStore()) {
+  const back = await googleInBrowser(SITE);
+  if (!back) return { ok: false, error: 'Google sign-in is not available in this version of the app.' };
+  if (back.cancelled) return { ok: false, cancelled: true };
+  return signIn('/api/auth/google/app', { code: back.code, verifier: back.verifier }, store);
+}
+
+// "Connect Google": the server gives a one-time address to go to.
+export const googleLinkUrl = () => ask('POST', '/api/auth/google/link', {});
+// Which ways of signing in the server offers: { email, google }. Asked once per page load.
+let providers = null;
+export function loadProviders() {
+  providers ??= ask('GET', '/api/auth/providers').then((r) => {
+    if (!r.ok) providers = null; // offline or a hiccup: ask again next time
+    return r.ok ? r.json : { email: false, google: false };
+  });
+  return providers;
+}
+export const changePassword = (current, password, code) => ask('POST', '/api/account/password', { password, ...(code ? { code } : { current }) });
+export async function rename(username) {
+  const r = await ask('POST', '/api/account/name', { username });
+  if (r.ok) { justCreated = false; setUser(r.json.user); }
+  return r;
+}
 
 export async function logout() {
   try { await api('POST', '/api/logout', {}); } catch { /* signed out locally anyway */ }
@@ -63,16 +115,12 @@ export async function logout() {
   setUser(null); // this device keeps its progress
 }
 
-// Delete the account (the password confirms it). This device keeps its progress unless
-// `clearDevice` is set, which also removes the synced keys stored here.
-export async function deleteAccount(password, { clearDevice = false, store = appStore() } = {}) {
-  let r;
-  try {
-    r = await api('POST', '/api/account/delete', { password });
-  } catch {
-    return { ok: false, error: 'No connection. Try again when you are online.' };
-  }
-  if (!r.ok) return { ok: false, error: r.json.error ?? 'Something went wrong.' };
+// Delete the account, confirmed with the password (or, for an account without one, a code sent
+// to its email: `{ code }`). This device keeps its progress unless `clearDevice` is set, which also
+// removes the synced keys stored here.
+export async function deleteAccount(password, { code, clearDevice = false, store = appStore() } = {}) {
+  const r = await ask('POST', '/api/account/delete', code ? { code } : { password });
+  if (!r.ok) return r;
   clearTimeout(timer);
   lastSync = null;
   // The server forgot this device's reminder subscription; drop it in the browser too.
