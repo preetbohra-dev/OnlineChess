@@ -4,6 +4,7 @@ import { createGame, otherColor } from '../core/rules.js';
 import { createEmitter } from '../core/events.js';
 import { createClock, parseTimeControl } from '../core/clock.js';
 import { h, COLOR_NAME } from '../ui/dom.js';
+import { siteOrigin } from '../net/platform.js';
 
 const ONGOING = { over: false, result: null, winner: null, reason: null };
 export const EMOTE_BUTTONS = [['thumbs', '👍'], ['gl', 'Good luck!'], ['nice', 'Nice move!'], ['oops', 'Oops!'], ['gg', 'GG']];
@@ -135,7 +136,7 @@ export function createOnlineSession({ client, roomId }) {
     renderExtras(container) {
       const parts = [];
       if (state && !bothSeated()) {
-        const link = `${location.origin}/#/room/${roomId}`;
+        const link = `${siteOrigin()}/#/room/${roomId}`;
         const input = h('input', { class: 'room-link', testid: 'room-link', readonly: true, value: link, 'aria-label': 'Invite link' });
         parts.push(h('div', { class: 'invite' },
           h('strong', {}, 'Invite a friend'),

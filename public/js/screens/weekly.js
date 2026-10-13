@@ -2,10 +2,10 @@
 // and the leaderboard. Taking part needs an account; anyone can see the leaderboard.
 import { h, fill, liveRegion } from '../ui/dom.js';
 import { BoardView } from '../ui/board-view.js';
-import { choosePromotion } from '../ui/modal.js';
+import { choosePromotion, confirmDialog } from '../ui/modal.js';
 import { createGame } from '../core/rules.js';
 import { PERSONAS } from '../data/personas.js';
-import { loadChallenge, loadLeaderboard, answerPuzzle, startGame } from '../store/weekly.js';
+import { loadChallenge, loadLeaderboard, answerPuzzle, startGame, reportPlayer } from '../store/weekly.js';
 import { navigate } from '../router.js';
 import { currentUser, refreshMe } from '../store/account.js';
 import { playSound } from '../ui/sound.js';
@@ -13,14 +13,33 @@ import { toast } from '../ui/toast.js';
 
 const daysLeft = (endsAt) => Math.max(0, Math.ceil((endsAt - Date.now()) / 86_400_000));
 
+// Signed-in players can report an offensive username (enough reports hide it).
+function reportButton(username) {
+  const button = h('button', {
+    class: 'btn btn-small btn-report', type: 'button', testid: `report-${username}`, 'aria-label': `Report the username ${username}`,
+    onClick: async () => {
+      if (!(await confirmDialog({ title: 'Report this username?', message: `Report "${username}" as offensive? Usernames reported by several players are hidden from the leaderboard until we review them.`, confirmLabel: 'Report' }))) return;
+      button.disabled = true;
+      const r = await reportPlayer(username);
+      if (!r.ok) { button.disabled = false; return toast(r.json.error ?? 'The report could not be sent.', { kind: 'warn' }); }
+      button.textContent = 'Reported';
+      button.setAttribute('aria-label', `Reported the username ${username}`);
+      toast('Thanks — the username was reported.');
+    },
+  }, 'Report');
+  return button;
+}
+
 function leaderboardTable(board) {
+  const canReport = Boolean(board.me);
   return h('section', { class: 'menu-section', testid: 'leaderboard' },
     h('h2', {}, 'Leaderboard'),
     board.top.length
       ? h('table', { class: 'records' },
-        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, '#'), h('th', { scope: 'col' }, 'Player'), h('th', { scope: 'col' }, 'Points'))),
+        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, '#'), h('th', { scope: 'col' }, 'Player'), h('th', { scope: 'col' }, 'Points'), canReport ? h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Report')) : null)),
         h('tbody', {}, board.top.map((r) => h('tr', { class: board.me?.username === r.username ? 'me' : '', testid: `rank-${r.username}` },
-          h('td', {}, String(r.rank)), h('th', { scope: 'row' }, r.username), h('td', {}, String(r.score))))))
+          h('td', {}, String(r.rank)), h('th', { scope: 'row' }, r.username), h('td', {}, String(r.score)),
+          canReport ? h('td', {}, board.me.username === r.username ? null : reportButton(r.username)) : null))))
       : h('p', { class: 'muted' }, 'No scores yet this week — be the first.'),
     board.me ? h('p', { testid: 'my-rank' }, board.me.rank ? `You are #${board.me.rank} with ${board.me.score} points.` : 'You have no points yet this week.') : null,
     board.lastWeek.length ? h('p', { class: 'muted small', testid: 'last-week' }, `Last week: ${board.lastWeek.map((r) => `${['🥇', '🥈', '🥉'][r.rank - 1] ?? `#${r.rank}`} ${r.username} (${r.score})`).join(' · ')}`) : null,

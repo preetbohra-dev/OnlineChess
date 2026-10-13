@@ -14,6 +14,7 @@ test('a new player sees the dashboard with rank, daily puzzle and where to conti
   await expect(page.getByTestId('dash-daily')).toContainText('Daily puzzle');
   await expect(page.getByTestId('dash-streak')).toContainText('Start a streak');
   await expect(page.getByTestId('dash-continue')).toHaveAttribute('href', '#/learn/novice-board');
+  await expect(page.getByTestId('source-link')).toHaveAttribute('href', 'https://github.com/preetbohra-dev/OnlineChess');
 });
 
 test('a win from a set-up position is practice: a little XP, no record or achievements', async ({ page }) => {

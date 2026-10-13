@@ -1,10 +1,13 @@
 // Daily-puzzle reminders (Web Push) for signed-in players: subscribe this browser, choose the hour.
 // Works where the browser supports push (on iPhone only once the app is on the home screen).
 
+import { isNativeApp } from '../net/platform.js';
+
 const HEADERS = { 'Content-Type': 'application/json', 'X-OC-Request': '1' };
 export const REMINDER_HOURS = [8, 12, 17, 19, 21];
 
-export const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext;
+// Not inside the iPhone and Android apps: they use the phone's own notifications instead.
+export const pushSupported = () => !isNativeApp() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.isSecureContext;
 
 const fromBase64Url = (s) => {
   const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4));

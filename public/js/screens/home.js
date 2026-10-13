@@ -4,6 +4,9 @@ import { PERSONAS } from '../data/personas.js';
 import { today } from './profile.js';
 import { loadProfile } from '../store/profile.js';
 
+// The complete source (GPL-3.0, as Stockfish requires for anything that bundles it).
+export const SOURCE_URL = 'https://github.com/preetbohra-dev/OnlineChess';
+
 // A menu entry: icon, title and one line of text.
 function tile({ testid, href, icon, title, text, eyebrow }) {
   return h('a', { class: 'tile', testid, href },
@@ -35,7 +38,10 @@ export function renderHome(outlet) {
     today(),
     h('footer', { class: 'credits muted' },
       'Computer opponents are powered by ', h('a', { href: 'https://stockfishchess.org', rel: 'noopener', target: '_blank' }, 'Stockfish'),
-      ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '.')));
+      ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '. ',
+      h('a', { href: SOURCE_URL, rel: 'noopener', target: '_blank', testid: 'source-link' }, 'Source code'), ' · ',
+      h('a', { href: '/privacy.html', testid: 'footer-privacy' }, 'Privacy'), ' · ',
+      h('a', { href: '/support.html', testid: 'footer-support' }, 'Support'))));
 }
 
 export function renderPlayMenu(outlet) {

@@ -73,6 +73,22 @@ const MIGRATIONS = [
    );
    CREATE INDEX challenge_answers_week ON challenge_answers(week);
    CREATE INDEX challenge_games_week ON challenge_games(week);`,
+  // 4: each week's challenge set, fixed when the week is first served (so changing the pool never
+  // changes a week that has started)
+  `CREATE TABLE challenge_sets (
+     week TEXT PRIMARY KEY,
+     data TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );`,
+  // 5: reports of offensive usernames; a reported user can be hidden from the leaderboard
+  `ALTER TABLE users ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE reports (
+     reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     reported_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (reporter_id, reported_id)
+   );
+   CREATE INDEX reports_reported ON reports(reported_id);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -137,6 +153,17 @@ function wrap(db) {
     startGame: db.prepare('INSERT OR IGNORE INTO challenge_starts (user_id, week, slot, at) VALUES (?, ?, ?, ?)'),
     gameStart: db.prepare('SELECT at FROM challenge_starts WHERE user_id = ? AND week = ? AND slot = ?'),
     gamesPlayed: db.prepare('SELECT slot, outcome, points FROM challenge_games WHERE user_id = ? AND week = ?'),
+    addReport: db.prepare('INSERT OR IGNORE INTO reports (reporter_id, reported_id, created_at) VALUES (?, ?, ?)'),
+    // Reports that count towards hiding: only from accounts at least a day old (so a burst of new
+    // accounts cannot hide someone).
+    countReports: db.prepare('SELECT COUNT(*) AS n FROM reports r JOIN users u ON u.id = r.reporter_id WHERE r.reported_id = ? AND u.created_at <= ?'),
+    reportsBy: db.prepare('SELECT COUNT(*) AS n FROM reports WHERE reporter_id = ? AND created_at > ?'),
+    setHidden: db.prepare('UPDATE users SET hidden = ? WHERE id = ?'),
+    clearReports: db.prepare('DELETE FROM reports WHERE reported_id = ?'),
+    reportList: db.prepare(`SELECT u.username, u.hidden, COUNT(r.reporter_id) AS reports, MAX(r.created_at) AS last
+      FROM users u JOIN reports r ON r.reported_id = u.id GROUP BY u.id ORDER BY last DESC`),
+    weekSet: db.prepare('SELECT data FROM challenge_sets WHERE week = ?'),
+    addWeekSet: db.prepare('INSERT OR IGNORE INTO challenge_sets (week, data, created_at) VALUES (?, ?, ?)'),
     addGame: db.prepare('INSERT OR IGNORE INTO challenge_games (user_id, week, slot, outcome, points, plies, at) VALUES (?, ?, ?, ?, ?, ?, ?)'),
     // Score per player for a week: puzzle points + game points; ties go to whoever finished first.
     leaderboard: db.prepare(`WITH scores AS (
@@ -145,13 +172,14 @@ function wrap(db) {
           UNION ALL SELECT user_id, points, at FROM challenge_games WHERE week = ?)
         GROUP BY user_id)
       SELECT u.username, s.user_id, s.score, s.last, RANK() OVER (ORDER BY s.score DESC, s.last ASC) AS rank
-      FROM scores s JOIN users u ON u.id = s.user_id WHERE s.score > 0 ORDER BY rank LIMIT ?`),
+      FROM scores s JOIN users u ON u.id = s.user_id WHERE s.score > 0 AND u.hidden = 0 ORDER BY rank LIMIT ?`),
     myRank: db.prepare(`WITH scores AS (
         SELECT user_id, SUM(points) AS score, MAX(at) AS last FROM (
           SELECT user_id, correct * ? AS points, at FROM challenge_answers WHERE week = ?
           UNION ALL SELECT user_id, points, at FROM challenge_games WHERE week = ?)
         GROUP BY user_id),
-      ranked AS (SELECT user_id, score, RANK() OVER (ORDER BY score DESC, last ASC) AS rank FROM scores)
+      ranked AS (SELECT s.user_id, s.score, RANK() OVER (ORDER BY s.score DESC, s.last ASC) AS rank
+        FROM scores s JOIN users u ON u.id = s.user_id WHERE u.hidden = 0 OR s.user_id = ?)
       SELECT score, rank FROM ranked WHERE user_id = ?`),
     putState: db.prepare('INSERT INTO states (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'),
   };

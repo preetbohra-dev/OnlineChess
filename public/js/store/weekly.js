@@ -1,12 +1,11 @@
 // The weekly challenge, client side: fetch this week's set, answer puzzles, report games.
 import { toast } from '../ui/toast.js';
-
-const HEADERS = { 'Content-Type': 'application/json', 'X-OC-Request': '1' };
+import { apiFetch } from '../net/api.js';
 
 // Never throws: offline or a failed request comes back as { ok: false, status: 0, json: { error } }.
 async function call(method, path, body) {
   try {
-    const res = await fetch(path, { method, headers: body === undefined ? {} : HEADERS, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin' });
+    const res = await apiFetch(path, { method, body });
     const json = await res.json().catch(() => ({}));
     return { ok: res.ok, status: res.status, json };
   } catch {
@@ -18,6 +17,7 @@ export const loadChallenge = () => call('GET', '/api/challenge');
 export const loadLeaderboard = () => call('GET', '/api/challenge/leaderboard');
 export const answerPuzzle = (week, index, move) => call('POST', '/api/challenge/answer', { week, index, move });
 export const startGame = (week, slot) => call('POST', '/api/challenge/start', { week, slot });
+export const reportPlayer = (username) => call('POST', '/api/report', { username });
 
 // Endings the server can check from the moves alone (resignations and time-outs cannot be).
 const CHECKABLE = new Set(['checkmate', 'stalemate', 'insufficient', 'fivefold', 'seventyfive']);

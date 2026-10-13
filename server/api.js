@@ -4,16 +4,24 @@
 //   GET /api/push/key · POST /api/push/subscribe {subscription, tz, hour} · POST /api/push/unsubscribe {endpoint}
 //   GET /api/challenge · POST /api/challenge/answer {index, move} · POST /api/challenge/game {slot, moves}
 //   GET /api/challenge/leaderboard
+//   POST /api/account/delete {password} · POST /api/report {username}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
-// SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock
-// after repeated wrong passwords (see auth.js).
+// SameSite=Lax session cookie). The apps call from their own origins (allowed by index.js) and
+// authenticate with `Authorization: Bearer <token>`, which no other site can send. Sign-in
+// attempts are rate-limited per address; accounts lock after repeated wrong passwords (auth.js).
 import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js';
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
 import { challengeWeek, weeklySet, isCorrect, scoreGame, publicView, PUZZLE_POINTS, MIN_MS_PER_PLY } from './challenge.js';
+import { USERNAME } from './auth.js';
 
 export const SESSION_COOKIE = 'oc_session';
 const AUTH_BODY_BYTES = 2 * 1024;
+// Different players (with accounts at least REPORTER_MIN_AGE_MS old) who must report a username
+// before it leaves the leaderboard, and how many players one account may report per day.
+export const HIDE_AFTER_REPORTS = 3;
+export const REPORTER_MIN_AGE_MS = 86_400_000;
+const REPORTS_PER_DAY = 10;
 
 function send(res, status, body, headers = {}) {
   const json = JSON.stringify(body);
@@ -59,17 +67,27 @@ function readJson(req, limit) {
 
 export function createApi({
   db, accounts, originAllowed, clientAddress, now = () => Date.now(),
+  appOrigin = () => false, // a request from an app page (capacitor://localhost, https://localhost)
+  isApp = () => false, // ... that also says it is the app (bearer tokens instead of cookies)
   authRate = { rate: 0.2, burst: 10 }, // sign-in attempts per address (IPv6: per /64)
   hashRate = { rate: 30, burst: 60 }, // password hashes per second for the whole server (CPU guard)
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
   push = null, // { publicKey } when reminders are running
   puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
 }) {
-  // The week's set is computed once per week.
+  // The week's set is chosen once, when the week is first served, and stored: later changes to
+  // the pool (or a server restart) never change a week that has started.
   let cachedSet = null;
   const thisWeek = () => {
     const week = challengeWeek(now());
-    if (cachedSet?.week !== week) cachedSet = weeklySet(week, puzzles);
+    if (cachedSet?.week !== week) {
+      const stored = db.q.weekSet.get(week);
+      if (stored) cachedSet = JSON.parse(stored.data);
+      else {
+        db.q.addWeekSet.run(week, JSON.stringify(weeklySet(week, puzzles)), now());
+        cachedSet = JSON.parse(db.q.weekSet.get(week).data);
+      }
+    }
     return cachedSet;
   };
   const leaderboard = (week, limit) => db.q.leaderboard.all(PUZZLE_POINTS, week, week, limit);
@@ -93,14 +111,21 @@ export function createApi({
     const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
     return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
   };
-  const signedIn = (req, res, result, status = 200) => send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) });
+  // The website gets an HttpOnly cookie; an app gets the token in the body and keeps it itself.
+  const signedIn = (req, res, result, status = 200) => (isApp(req)
+    ? send(res, status, { user: { username: result.user.username }, token: result.token })
+    : send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) }));
+  const signedOut = (req, res) => send(res, 200, { user: null }, isApp(req) ? {} : { 'Set-Cookie': cookie(req, '', 0) });
 
   return async function handleApi(req, res, pathname) {
     if (!db) return send(res, 503, { error: 'Accounts are not available on this server.' });
     const route = `${req.method} ${pathname}`;
     const write = req.method !== 'GET' && req.method !== 'HEAD';
     if (write && (!originAllowed(req) || req.headers['x-oc-request'] !== '1')) return send(res, 403, { error: 'Forbidden.' });
-    const token = readCookie(req, SESSION_COOKIE);
+    const bearer = /^Bearer ([\w-]{20,100})$/.exec(req.headers.authorization ?? '');
+    // App pages authenticate with the bearer token only, never a cookie (one more layer against
+    // cross-site use of a website session).
+    const token = bearer ? bearer[1] : appOrigin(req) ? null : readCookie(req, SESSION_COOKIE);
     const user = token ? accounts.userForToken(token) : null;
 
     switch (route) {
@@ -121,7 +146,7 @@ export function createApi({
 
       case 'POST /api/logout':
         if (token) accounts.logout(token);
-        return send(res, 200, { user: null }, { 'Set-Cookie': cookie(req, '', 0) });
+        return signedOut(req, res);
 
       case 'GET /api/state': {
         if (!user) return send(res, 401, { error: 'Sign in first.' });
@@ -225,13 +250,45 @@ export function createApi({
         if (!syncBuckets.take(`l${addressOf(req)}`)) return send(res, 429, { error: 'Too many requests.' });
         const week = thisWeek().week;
         const board = cachedBoard(week);
-        const row = user ? db.q.myRank.get(PUZZLE_POINTS, week, week, user.id) : null;
+        const row = user ? db.q.myRank.get(PUZZLE_POINTS, week, week, user.id, user.id) : null;
         return send(res, 200, {
           week,
           top: board.top,
           me: user ? { username: user.username, rank: row?.score > 0 ? row.rank : null, score: row?.score ?? 0 } : null,
           lastWeek: board.lastWeek,
         });
+      }
+
+      case 'POST /api/account/delete': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        if (!hashBucket.take()) return send(res, 503, { error: 'The server is busy. Try again in a moment.' }, { 'Retry-After': '5' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const result = await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
+        if (!result.ok) return send(res, result.status, { error: result.error });
+        boardCache.at = 0; // the player leaves the leaderboard at once
+        return signedOut(req, res);
+      }
+
+      // A signed-in player reports another player's username. Enough different established reporters hide it
+      // from the leaderboard until an admin looks (scripts/admin.mjs reports | hide | unhide).
+      case 'POST /api/report': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`r${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const name = body.value?.username;
+        const target = typeof name === 'string' && USERNAME.test(name) ? db.q.userByName.get(name) : null;
+        if (!target) return send(res, 404, { error: 'No such player.' });
+        if (target.id === user.id) return send(res, 400, { error: 'You cannot report yourself.' });
+        if (db.q.reportsBy.get(user.id, now() - 86_400_000).n >= REPORTS_PER_DAY) return send(res, 429, { error: 'You have sent a lot of reports today. Try again tomorrow.' });
+        db.q.addReport.run(user.id, target.id, now());
+        if (!target.hidden && db.q.countReports.get(target.id, now() - REPORTER_MIN_AGE_MS).n >= HIDE_AFTER_REPORTS) {
+          db.q.setHidden.run(1, target.id);
+          boardCache.at = 0;
+        }
+        return send(res, 200, { ok: true });
       }
 
       default:

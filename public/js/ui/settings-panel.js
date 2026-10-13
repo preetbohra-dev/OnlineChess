@@ -58,6 +58,9 @@ export function openSettings() {
       toggle('showCoordinates', 'Board coordinates', 'Applies to the next game you open'),
       toggle('autoFlip', 'Auto-flip in pass and play', 'Turn the board toward the player to move'),
       toggle('taunts', 'Computer trash talk', 'Let computer opponents comment on your blunders'),
+      h('p', { class: 'muted small settings-links' },
+        h('a', { href: '/privacy.html', testid: 'link-privacy' }, 'Privacy policy'), ' · ',
+        h('a', { href: '/support.html', testid: 'link-support' }, 'Support')),
     ],
     actions: [{ label: 'Done', primary: true, testid: 'btn-settings-done' }],
   });
