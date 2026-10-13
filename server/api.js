@@ -321,6 +321,19 @@ export function createApi({
         return send(res, 200, { url: `/auth/google/start?link=${ticket}` });
       }
 
+      // The app finishes "Continue with Google": its one-time code and PKCE verifier for a session.
+      case 'POST /api/auth/google/app': {
+        if (!google) return send(res, 503, { error: 'Google sign-in is not available.' });
+        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const r = google.exchangeAppCode(body.value?.code, body.value?.verifier);
+        if (!r) return send(res, 400, { error: 'Google sign-in did not finish. Please try again.' });
+        const row = db.q.userById.get(r.userId);
+        boardCache.at = 0;
+        return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
+      }
+
       // Which ways of signing in this server offers (the page shows only those).
       case 'GET /api/auth/providers':
         return send(res, 200, { email: Boolean(emailAuth), google: Boolean(google) });

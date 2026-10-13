@@ -6,6 +6,8 @@ import { bus } from '../core/events.js';
 import { SYNC_KEYS, mergeStates } from '../core/sync.js';
 import { emptyProfile } from '../core/progression.js';
 import { apiFetch, setAppToken } from '../net/api.js';
+import { googleInBrowser } from '../net/native.js';
+import { SITE } from '../net/platform.js';
 import { currentSubscription } from '../ui/reminders.js';
 
 const SYNC_DELAY_MS = 4000;
@@ -82,6 +84,14 @@ export const useLink = (token, store = appStore()) => signIn('/api/auth/link', {
 // `proof`: { password } or { code } (a code sent to the account's current email).
 export const addEmail = (email, proof = {}) => ask('POST', '/api/account/email', { email, ...proof });
 export const loadAccount = () => ask('GET', '/api/account');
+// "Continue with Google" inside the apps: the phone's browser, then the one-time code back here.
+export async function signInWithGoogleInApp(store = appStore()) {
+  const back = await googleInBrowser(SITE);
+  if (!back) return { ok: false, error: 'Google sign-in is not available in this version of the app.' };
+  if (back.cancelled) return { ok: false, cancelled: true };
+  return signIn('/api/auth/google/app', { code: back.code, verifier: back.verifier }, store);
+}
+
 // "Connect Google": the server gives a one-time address to go to.
 export const googleLinkUrl = () => ask('POST', '/api/auth/google/link', {});
 // Which ways of signing in the server offers: { email, google }. Asked once per page load.

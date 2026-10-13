@@ -43,3 +43,42 @@ test('inside the app: haptics by kind, the native share sheet', async () => {
     delete globalThis.capacitorShare;
   }
 });
+
+test('inside the app, Google opens in the browser and the one-time code comes back through the app link', async () => {
+  const { startNative, googleInBrowser, APP_RETURN } = await import('../../public/js/net/native.js');
+  const listeners = {};
+  let opened = null;
+  let closed = 0;
+  Object.assign(globalThis, {
+    Capacitor: { isNativePlatform: () => true },
+    capacitorApp: { App: { addListener: (name, fn) => { listeners[name] = fn; }, exitApp() {} } },
+    capacitorBrowser: { Browser: { open: async ({ url }) => { opened = url; }, close: async () => { closed++; }, addListener: (name, fn) => { listeners[`browser:${name}`] = fn; } } },
+    document: { documentElement: { dataset: {} } },
+    matchMedia: () => ({ matches: true, addEventListener() {} }),
+    MutationObserver: class { observe() {} },
+    requestAnimationFrame: () => {},
+  });
+  try {
+    startNative({ site: 'https://chess.example' });
+    const result = googleInBrowser('https://chess.example');
+    const waitOpen = async () => { for (let i = 0; i < 100 && !opened; i++) await new Promise((r) => setTimeout(r, 5)); };
+    await waitOpen();
+    const challenge = new URL(opened).searchParams.get('app');
+    assert.match(opened, /^https:\/\/chess\.example\/auth\/google\/start\?app=[\w-]{43}$/);
+    listeners.appUrlOpen({ url: `${APP_RETURN}?code=abc123` });
+    const back = await result;
+    assert.equal(back.code, 'abc123');
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(back.verifier));
+    assert.equal(Buffer.from(digest).toString('base64url'), challenge, 'the verifier matches the challenge sent');
+    assert.equal(closed, 1, 'the browser closes');
+
+    // Closing the browser without finishing is a cancel.
+    opened = null;
+    const again = googleInBrowser('https://chess.example');
+    await waitOpen();
+    listeners['browser:browserFinished']();
+    assert.deepEqual(await again, { cancelled: true });
+  } finally {
+    for (const k of ['Capacitor', 'capacitorApp', 'capacitorBrowser', 'document', 'matchMedia', 'MutationObserver', 'requestAnimationFrame']) delete globalThis[k];
+  }
+});

@@ -19,6 +19,7 @@ export const CAPACITOR_SCRIPTS = [
   ['share', 'dist/plugin.js', 'share.js'],
   ['splash-screen', 'dist/plugin.js', 'splash-screen.js'],
   ['status-bar', 'dist/plugin.js', 'status-bar.js'],
+  ['browser', 'dist/plugin.js', 'browser.js'],
 ];
 
 export const APP_CSP = [

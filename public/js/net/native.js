@@ -20,6 +20,32 @@ export function nativeShare({ title = 'OnlineChess', text, url }) {
   return Share.share({ title, text, url, dialogTitle: 'Share' }).then(() => 'shared', () => 'cancelled');
 }
 
+// "Continue with Google" inside the app. Google does not allow its sign-in inside an app's web
+// view, so it opens in the phone's browser; the server sends the browser back to the app's own
+// link scheme with a one-time code, which only this app (holding the PKCE verifier) can redeem.
+// -> { code, verifier } | { cancelled: true } | null when the browser plugin is missing
+export const APP_RETURN = 'com.solankidigitaldrafts.chess://auth';
+let pendingGoogle = null;
+const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+export async function googleInBrowser(site) {
+  const Browser = plugin('capacitorBrowser', 'Browser');
+  if (!Browser) return null;
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  pendingGoogle?.resolve({ cancelled: true });
+  const result = new Promise((resolve) => { pendingGoogle = { resolve, verifier }; });
+  await Browser.open({ url: `${site}/auth/google/start?app=${challenge}` });
+  return result;
+}
+function finishGoogle(url) {
+  if (!pendingGoogle) return;
+  const code = new URL(url).searchParams.get('code');
+  const { resolve, verifier } = pendingGoogle;
+  pendingGoogle = null;
+  plugin('capacitorBrowser', 'Browser')?.close().catch(() => {});
+  resolve(code ? { code, verifier } : { cancelled: true });
+}
+
 // The route inside the app for a link to the public site (https://…/#/room/abc -> #/room/abc).
 export function routeForLink(href, site) {
   try {
@@ -51,8 +77,13 @@ export function startNative({ site, isDark = darkTheme } = {}) {
     else App.exitApp();
   });
   App?.addListener('appUrlOpen', ({ url }) => {
+    if (url.startsWith(`${APP_RETURN}?`)) return finishGoogle(url);
     const route = routeForLink(url, site);
     if (route) location.hash = route;
+  });
+  // The player closed the browser before Google sent them back.
+  plugin('capacitorBrowser', 'Browser')?.addListener('browserFinished', () => {
+    setTimeout(() => { if (pendingGoogle) { pendingGoogle.resolve({ cancelled: true }); pendingGoogle = null; } }, 800);
   });
   const StatusBar = plugin('capacitorStatusBar', 'StatusBar');
   const paintStatusBar = () => StatusBar?.setStyle({ style: isDark() ? 'DARK' : 'LIGHT' }).catch(() => {});

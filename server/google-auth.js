@@ -20,7 +20,9 @@ const FLOW_TTL_MS = 10 * 60_000;
 const MAX_FLOWS = 5_000;
 const STATE_COOKIE = 'oc_google';
 const TIMEOUT_MS = 10_000;
-const MIN_REFETCH_MS = 60_000; // forced key refreshes (after an unknown key) at most this often
+const MIN_REFETCH_MS = 60_000;
+const APP_CODE_TTL_MS = 2 * 60_000;
+export const APP_RETURN = 'com.solankidigitaldrafts.chess://auth'; // the apps' link scheme (AndroidManifest, Info.plist) // forced key refreshes (after an unknown key) at most this often
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 const random = (n = 32) => b64url(crypto.randomBytes(n));
@@ -64,6 +66,9 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
   const redirectUri = `${origin}/auth/google/callback`;
   const flows = new Map(); // state -> { verifier, nonce, created, linkUserId }
   const linkTickets = new Map(); // one-time ticket -> { userId, created }: "Connect Google" from the page
+  // The apps: Google's answer comes back to the app through its own link scheme as a one-time
+  // code, which only the app that started (holding the PKCE verifier) can exchange for a session.
+  const appCodes = new Map(); // sha256(code) -> { userId, challenge, created, isNew }
   let certs = { keys: [], until: 0, fetched: 0 };
 
   async function googleKeys(force = false) {
@@ -81,6 +86,7 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
     const t = now();
     for (const [state, f] of flows) if (t - f.created > FLOW_TTL_MS) flows.delete(state);
     for (const [ticket, l] of linkTickets) if (t - l.created > FLOW_TTL_MS) linkTickets.delete(ticket);
+    for (const [code, c] of appCodes) if (t - c.created > APP_CODE_TTL_MS) appCodes.delete(code);
   }
 
   // The player for a Google account: already linked; else the signed-in player who asked to link
@@ -128,13 +134,14 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
 
     // -> { location, state } | null when too many sign-ins are under way (new ones wait; the ones
     // already started are never pushed out)
-    start({ linkUserId = null } = {}) {
+    start({ linkUserId = null, appChallenge = null } = {}) {
       prune();
       if (flows.size >= MAX_FLOWS) return null;
+      if (appChallenge !== null && !/^[\w-]{43}$/.test(appChallenge)) return null;
       const state = random();
       const verifier = random(48);
       const nonce = random();
-      flows.set(state, { verifier, nonce, created: now(), linkUserId });
+      flows.set(state, { verifier, nonce, created: now(), linkUserId, appChallenge });
       const params = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
@@ -185,7 +192,24 @@ export function createGoogleAuth({ db, accounts, clientId, clientSecret, origin,
       if (!claims) return { ok: false, reason: 'bad' };
       const found = resolve(claims, flow.linkUserId);
       if (found.conflict) return { ok: false, reason: 'taken' };
+      if (flow.appChallenge) {
+        if (appCodes.size >= MAX_FLOWS) return { ok: false, reason: 'busy' };
+        const code = random();
+        appCodes.set(sha256(code).toString('hex'), { userId: found.userId, challenge: flow.appChallenge, created: now(), isNew: found.created });
+        return { ok: true, app: true, appCode: code };
+      }
       return { ok: true, userId: found.userId, token: accounts.startSession(found.userId), created: found.created };
+    },
+
+    // The app trades its one-time code and PKCE verifier for a session. -> { userId, token, isNew } | null
+    exchangeAppCode(code, verifier) {
+      if (typeof code !== 'string' || typeof verifier !== 'string' || !/^[\w-]{43,128}$/.test(verifier)) return null;
+      const key = sha256(code).toString('hex');
+      const entry = appCodes.get(key);
+      appCodes.delete(key); // one try, right or wrong
+      if (!entry || now() - entry.created > APP_CODE_TTL_MS) return null;
+      if (!crypto.timingSafeEqual(Buffer.from(b64url(sha256(verifier))), Buffer.from(entry.challenge))) return null;
+      return { userId: entry.userId, token: accounts.startSession(entry.userId), isNew: entry.isNew };
     },
 
     stateCookie(state, secure) {

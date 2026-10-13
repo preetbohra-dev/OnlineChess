@@ -10,7 +10,7 @@ import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { appLinkFiles } from './app-links.js';
 import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
-import { createGoogleAuth } from './google-auth.js';
+import { createGoogleAuth, APP_RETURN } from './google-auth.js';
 import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -140,7 +140,9 @@ export function createAppServer({
         linkUserId = google.useLinkTicket(query.get('link'));
         if (!linkUserId || linkUserId !== sessionUser?.id) return redirect(res, '/#/welcome?error=expired');
       }
-      const flow = google.start({ linkUserId });
+      const appChallenge = query.get('app'); // started by an app (its PKCE challenge)
+      if (appChallenge !== null && !/^[\w-]{43}$/.test(appChallenge)) return redirect(res, '/#/welcome?error=bad');
+      const flow = google.start({ linkUserId, appChallenge });
       if (!flow) return redirect(res, '/#/welcome?error=busy');
       return redirect(res, flow.location, [google.stateCookie(flow.state, secure)]);
     }
@@ -148,6 +150,7 @@ export function createAppServer({
     const r = await google.callback(req, new URL(req.url, 'http://x').searchParams, sessionToken ? accounts.userForToken(sessionToken)?.id ?? null : null);
     const clear = google.clearStateCookie(secure);
     if (!r.ok) return redirect(res, `/#/welcome?error=${r.reason}`, [clear]);
+    if (r.app) return redirect(res, `${APP_RETURN}?code=${r.appCode}`, [clear]); // back into the app
     return redirect(res, r.created ? '/#/welcome?new=1' : '/#/welcome', [clear, sessionCookie(req, r.token, 30 * 86_400)]);
   }
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };

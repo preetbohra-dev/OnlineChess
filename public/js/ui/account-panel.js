@@ -7,7 +7,7 @@ import { openModal } from './modal.js';
 import { toast } from './toast.js';
 import {
   currentUser, lastSynced, login, logout, syncNow, deleteAccount,
-  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen, loadProviders, googleLinkUrl,
+  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen, loadProviders, googleLinkUrl, signInWithGoogleInApp,
 } from '../store/account.js';
 import { isNativeApp } from '../net/platform.js';
 
@@ -36,8 +36,8 @@ export function accountSection() {
   let askName = false; // just created: suggest choosing a name
   let loadedFor = null;
   let confirming = false; // the code confirms a new sign-up: a password may be chosen with it
-  let google = false; // the server offers "Continue with Google" (website only for now)
-  loadProviders().then((p) => { if (p.google && !isNativeApp()) { google = true; render(); } });
+  let google = false; // the server offers "Continue with Google"
+  loadProviders().then((p) => { if (p.google) { google = true; render(); } });
   const typed = {}; // what the player typed, by field, kept when the form is drawn again
   // An input that keeps its value across redraws (passwords included, within this panel only).
   const input = (props) => h('input', { class: 'text-input', ...props, value: typed[props.testid] ?? props.value ?? '', onInput: (e) => { typed[props.testid] = e.target.value; } });
@@ -91,8 +91,19 @@ export function accountSection() {
       ' · ',
       h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-create-account', onClick: () => go('signup') }, 'Create an account')));
     if (!google || forgot) return form;
+    const googleStart = googleButton('/auth/google/start', 'Continue with Google', 'btn-google');
+    if (isNativeApp()) {
+      // Inside the app: the phone's browser, and back (see net/native.js).
+      googleStart.addEventListener('click', (e) => {
+        e.preventDefault();
+        run(async () => {
+          const r = await signInWithGoogleInApp();
+          if (!r.ok && !r.cancelled) error = r.error;
+        });
+      });
+    }
     return h('div', { class: 'account-start' },
-      googleButton('/auth/google/start', 'Continue with Google', 'btn-google'),
+      googleStart,
       h('p', { class: 'or-line', 'aria-hidden': 'true' }, h('span', {}, 'or')),
       form);
   }
@@ -279,7 +290,7 @@ export function accountSection() {
         : details ? h('p', { class: 'account-nudge', testid: 'add-email-nudge' }, 'Add an email so you can always get back into this account. ',
           h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-add-email-open', onClick: () => go('email') }, 'Add email')) : null,
       details?.google ? h('p', { class: 'muted small', testid: 'google-linked' }, 'Google account connected: you can sign in with Google.')
-        : google && details ? h('p', {}, (() => {
+        : google && details && !isNativeApp() ? h('p', {}, (() => {
           const b = googleButton('/auth/google/start', 'Connect Google', 'btn-google-link');
           b.addEventListener('click', async (e) => {
             e.preventDefault();
