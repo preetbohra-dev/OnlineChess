@@ -139,10 +139,15 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     copyPgn: button('btn-copy-pgn', 'PGN', '⧉', () => copyText(pgn(), 'PGN'), 'Copy the game as PGN'),
     copyFen: button('btn-copy-fen', 'FEN', '⧉', () => copyText(rules.fen(), 'FEN'), 'Copy the current position as FEN'),
   };
+  // Everyday actions stay in view; the board and export tools sit in a "More" menu. Claim only
+  // appears while a draw can actually be claimed.
+  const more = h('details', { class: 'more-menu', testid: 'more-menu' },
+    h('summary', { class: 'btn btn-control', testid: 'btn-more', title: 'More actions' }, h('span', { class: 'icon', 'aria-hidden': 'true' }, '⋯'), h('span', { class: 'label' }, 'More')),
+    h('div', { class: 'more-items', role: 'group', 'aria-label': 'Board and export' }, btn.flip, btn.copyPgn, btn.copyFen));
+  more.addEventListener('click', (e) => { if (e.target.closest('.more-items button')) more.open = false; });
   const controls = h('div', { class: 'controls' },
     caps.hint || caps.takeback ? h('div', { class: 'control-group', role: 'group', 'aria-label': 'Training' }, [btn.hint, btn.takeback].filter(Boolean)) : null,
-    h('div', { class: 'control-group', role: 'group', 'aria-label': 'Game actions' }, [btn.resign, btn.offerDraw, btn.claimDraw, btn.newGame].filter(Boolean)),
-    h('div', { class: 'control-group', role: 'group', 'aria-label': 'Board and export' }, btn.flip, btn.copyPgn, btn.copyFen));
+    h('div', { class: 'control-group', role: 'group', 'aria-label': 'Game actions' }, [btn.resign, btn.offerDraw, btn.claimDraw, btn.newGame, more].filter(Boolean)));
 
   const root = h('section', { class: 'game', testid: 'game', 'aria-label': session.title },
     h('div', { class: 'game-board-col' }, topCard.el, boardHost, bottomCard.el),
@@ -361,6 +366,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
     if (btn.offerDraw) btn.offerDraw.disabled = status.over || rules.drawOffer() === session.actingColor();
     if (btn.claimDraw) {
       btn.claimDraw.disabled = status.over || !claimable.length;
+      btn.claimDraw.hidden = btn.claimDraw.disabled;
       btn.claimDraw.classList.toggle('attention', claimable.length > 0);
       btn.claimDraw.title = claimable.includes('threefold') ? 'Claim a draw by threefold repetition'
         : claimable.includes('fifty') ? 'Claim a draw by the fifty-move rule'

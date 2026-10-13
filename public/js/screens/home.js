@@ -1,40 +1,38 @@
 // Home and mode menus: Normal Mode (Against Person / Against Computer) and Training Mode.
 import { h } from '../ui/dom.js';
 import { PERSONAS } from '../data/personas.js';
-import { dashboard } from './profile.js';
+import { today } from './profile.js';
+import { loadProfile } from '../store/profile.js';
 
-function optionCard({ testid, href, icon, title, eyebrow, text, soon = false }) {
-  const content = [
-    h('span', { class: 'option-icon', 'aria-hidden': 'true' }, icon),
-    h('span', { class: 'option-text' },
-      eyebrow ? h('span', { class: 'option-eyebrow' }, eyebrow) : null,
+// A menu entry: icon, title and one line of text.
+function tile({ testid, href, icon, title, text, eyebrow }) {
+  return h('a', { class: 'tile', testid, href },
+    h('span', { class: 'tile-icon', 'aria-hidden': 'true' }, icon),
+    h('span', { class: 'tile-text' },
+      eyebrow ? h('span', { class: 'tile-eyebrow' }, eyebrow) : null,
       h('strong', {}, title),
-      h('span', { class: 'muted' }, text)),
-    soon ? h('span', { class: 'badge' }, 'Coming soon') : h('span', { class: 'option-go', 'aria-hidden': 'true' }, '→'),
-  ];
-  return soon
-    ? h('div', { class: 'option-card disabled', testid, 'aria-disabled': 'true' }, content)
-    : h('a', { class: 'option-card', testid, href }, content);
+      text ? h('span', { class: 'muted' }, text) : null));
 }
 
+const section = (title, testid, ...items) => h('section', { class: 'menu-section', testid },
+  h('h2', { class: 'section-label' }, title),
+  h('div', { class: 'tile-grid' }, items));
+
 export function renderHome(outlet) {
+  const profile = loadProfile();
+  const returning = profile.xp > 0 || profile.games.played > 0;
   outlet.append(h('div', { class: 'page home' },
-    h('section', { class: 'hero' },
-      h('p', { class: 'eyebrow' }, 'Play · Learn · Improve'),
-      h('h1', {}, 'Your next move starts here.'),
-      h('p', { class: 'lede' }, 'Challenge a friend, outwit a computer that talks back, or train with a coach that explains every move — from your first game to grandmaster ideas.')),
-    h('div', { class: 'mode-grid' },
-      h('a', { class: 'mode-tile mode-normal', href: '#/play', testid: 'mode-normal' },
-        h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '♞'),
-        h('h2', {}, 'Normal Mode'),
-        h('p', {}, 'Play a full game against a friend — on this device or online — or against the computer at five levels.'),
-        h('span', { class: 'mode-cta' }, 'Play now →')),
-      h('a', { class: 'mode-tile mode-training', href: '#/train', testid: 'mode-training' },
-        h('span', { class: 'mode-icon', 'aria-hidden': 'true' }, '♛'),
-        h('h2', {}, 'Training Mode'),
-        h('p', {}, 'Learn the rules, tactics, openings and endgames, and get feedback on every move you make.'),
-        h('span', { class: 'mode-cta' }, 'Start learning →'))),
-    dashboard(),
+    h('section', { class: 'home-head' },
+      h('h1', {}, returning ? 'Good to see you.' : 'Your next move starts here.'),
+      returning ? null : h('p', { class: 'lede' }, 'Play a friend or the computer, solve puzzles, and train with a coach that explains every move.')),
+    h('div', { class: 'home-actions' },
+      h('a', { class: 'mode-btn', href: '#/play', testid: 'mode-normal' },
+        h('span', { class: 'mode-btn-icon', 'aria-hidden': 'true' }, '♞'),
+        h('span', {}, h('strong', {}, 'Play a game'), h('span', { class: 'muted' }, 'A friend, online, or the computer'))),
+      h('a', { class: 'mode-btn training', href: '#/train', testid: 'mode-training' },
+        h('span', { class: 'mode-btn-icon', 'aria-hidden': 'true' }, '♛'),
+        h('span', {}, h('strong', {}, 'Train'), h('span', { class: 'muted' }, 'Puzzles, lessons, openings, a coach')))),
+    today(),
     h('footer', { class: 'credits muted' },
       'Computer opponents are powered by ', h('a', { href: 'https://stockfishchess.org', rel: 'noopener', target: '_blank' }, 'Stockfish'),
       ', free software under the ', h('a', { href: '/vendor/stockfish/Copying.txt' }, 'GNU GPL v3'), '.')));
@@ -42,34 +40,34 @@ export function renderHome(outlet) {
 
 export function renderPlayMenu(outlet) {
   outlet.append(h('div', { class: 'page menu' },
-    h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Normal Mode'),
-    h('h1', {}, 'Normal Mode'),
-    h('section', { class: 'menu-section' },
-      h('h2', {}, 'Against a person'),
-      h('div', { class: 'option-list' },
-        optionCard({ testid: 'opt-local', href: '#/play/local/new', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen.' }),
-        optionCard({ testid: 'opt-online', href: '#/play/online/new', icon: '🌐', title: 'Online with a friend', text: 'Share a link and play from anywhere.' }))),
-    h('section', { class: 'menu-section' },
-      h('h2', {}, 'Against the computer'),
-      h('div', { class: 'option-list' },
-        optionCard({ testid: 'opt-campaign', href: '#/campaign', icon: '🗺️', title: 'Campaign', eyebrow: 'Earn stars', text: 'Beat the opponents in order and collect three stars from each.' })),
-      h('div', { class: 'option-list', testid: 'opt-computer' },
-        PERSONAS.map((p) => optionCard({ testid: `opt-bot-${p.id}`, href: `#/play/bot/new?persona=${p.id}`, icon: p.avatar, eyebrow: `${p.level} · ${p.rating}`, title: p.name, text: p.tagline }))))));
+    h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Play'),
+    h('h1', {}, 'Play'),
+    section('Against a person', 'play-person',
+      tile({ testid: 'opt-local', href: '#/play/local/new', icon: '🤝', title: 'Same device', text: 'Pass and play on this screen' }),
+      tile({ testid: 'opt-online', href: '#/play/online/new', icon: '🌐', title: 'Online with a friend', text: 'Share a link, play from anywhere' })),
+    section('Against the computer', 'opt-computer',
+      tile({ testid: 'opt-campaign', href: '#/campaign', icon: '★', title: 'Campaign', text: 'Beat them in order, earn stars' }),
+      PERSONAS.map((p) => tile({ testid: `opt-bot-${p.id}`, href: `#/play/bot/new?persona=${p.id}`, icon: p.avatar, eyebrow: `${p.level} · ${p.rating}`, title: p.name }))),
+    section('Your games', 'play-games',
+      tile({ testid: 'opt-games', href: '#/games', icon: '↺', title: 'Review your games', text: 'Accuracy, key moments, better moves' }))));
 }
 
 export function renderTrainMenu(outlet) {
   outlet.append(h('div', { class: 'page menu' },
-    h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Training Mode'),
-    h('h1', {}, 'Training Mode'),
-    h('div', { class: 'option-list' },
-      optionCard({ testid: 'opt-coach', href: '#/train/coach', icon: '🧑‍🏫', title: 'Coached game', text: 'Play while a coach grades every move and explains what you missed.' }),
-      optionCard({ testid: 'opt-weekly', href: '#/weekly', icon: '🏆', title: 'Weekly challenge', text: 'Ten puzzles and three games, the same for everyone. Climb the leaderboard.' }),
-      optionCard({ testid: 'opt-puzzles', href: '#/puzzles', icon: '🧩', title: 'Rated puzzles', text: '5,000 real puzzles that adapt to your rating, by theme.' }),
-      optionCard({ testid: 'opt-rush', href: '#/rush', icon: '⚡', title: 'Puzzle Rush', text: 'Three minutes, three strikes. How far can you go?' }),
-      optionCard({ testid: 'opt-weakspots', href: '#/weak-spots', icon: '🎯', title: 'Weak spots', text: 'Your own mistakes come back as puzzles until you have them mastered.' }),
-      optionCard({ testid: 'opt-lessons', href: '#/learn', icon: '📚', title: 'Lessons', text: 'From how the pieces move to winning tactics, with puzzles.' }),
-      optionCard({ testid: 'opt-openings', href: '#/openings', icon: '📖', title: 'Openings', text: 'Learn the ideas behind 15 classic openings, then practise them from memory.' }),
-      optionCard({ testid: 'opt-rules', href: '#/rules', icon: '⚖️', title: 'Rules handbook', text: 'Every rule of chess, explained with diagrams.' }))));
+    h('nav', { class: 'crumbs', 'aria-label': 'Breadcrumb' }, h('a', { href: '#/' }, 'Home'), ' / Train'),
+    h('h1', {}, 'Train'),
+    section('Practise', 'train-practise',
+      tile({ testid: 'opt-puzzles', href: '#/puzzles', icon: '🧩', title: 'Rated puzzles', text: 'Matched to your rating' }),
+      tile({ testid: 'opt-rush', href: '#/rush', icon: '⚡', title: 'Puzzle Rush', text: 'Three minutes, three strikes' }),
+      tile({ testid: 'opt-daily', href: '#/daily', icon: '📅', title: 'Daily puzzle', text: 'One a day — keep your streak' }),
+      tile({ testid: 'opt-weakspots', href: '#/weak-spots', icon: '🎯', title: 'Weak spots', text: 'Your own mistakes, until mastered' })),
+    section('Learn', 'train-learn',
+      tile({ testid: 'opt-lessons', href: '#/learn', icon: '📚', title: 'Lessons', text: 'From the pieces to endgame studies' }),
+      tile({ testid: 'opt-openings', href: '#/openings', icon: '📖', title: 'Openings', text: '15 classic openings, move by move' }),
+      tile({ testid: 'opt-rules', href: '#/rules', icon: '⚖️', title: 'Rules handbook', text: 'Every rule, with diagrams' })),
+    section('Play and compete', 'train-play',
+      tile({ testid: 'opt-coach', href: '#/train/coach', icon: '🧑‍🏫', title: 'Coached game', text: 'A coach explains every move' }),
+      tile({ testid: 'opt-weekly', href: '#/weekly', icon: '🏆', title: 'Weekly challenge', text: 'Same puzzles for all, one leaderboard' }))));
 }
 
 export function renderNotFound(outlet) {

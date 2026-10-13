@@ -18,8 +18,8 @@ test('the campaign opens with Pip; beating Pip opens Rex and shows the stars', a
   await expect(page.getByTestId('stars-novice')).toHaveAttribute('aria-label', /^2 of 3 stars: win, win in 40 moves/);
   await expect(page.getByTestId('campaign-total')).toContainText('2/15');
   await expect(page.getByTestId('play-amateur')).toHaveAttribute('href', '#/play/bot/new?persona=amateur');
-  await page.goto('/#/');
-  await expect(page.getByTestId('dash-campaign')).toContainText('2/15');
+  await page.goto('/#/profile');
+  await expect(page.getByTestId('profile')).toContainText('2/15');
 });
 
 test('board themes unlock with rank and recolour every board', async ({ page }) => {
