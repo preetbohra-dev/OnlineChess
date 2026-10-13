@@ -12,7 +12,7 @@ import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth, APP_RETURN } from './google-auth.js';
 import { createFriends } from './friends.js';
-import { createLive } from './live.js';
+import { createLive, MAX_LIVE_MESSAGE_BYTES } from './live.js';
 import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -107,6 +107,7 @@ export function createAppServer({
   publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
   mailLimits = createMailLimits(),
   usernameSignup = false, // the old username + password sign-up (tests only; players sign up with email or Google)
+  liveTiming = {}, // tests: { now, schedule } for the live channel's coalescing
   // "Continue with Google" (server/google-auth.js): on when the client id and secret are set.
   googleKeys = (({ GOOGLE_CLIENT_ID: id, GOOGLE_CLIENT_SECRET: secret }) => (id && secret ? { clientId: id, clientSecret: secret } : null))(loadAuthEnv()),
   googleFetch = globalThis.fetch, // tests replace Google's endpoints
@@ -124,7 +125,7 @@ export function createAppServer({
   const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
   const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
   const friends = db ? createFriends({ db }) : null;
-  const live = db ? createLive({ db, accounts, friends }) : null;
+  const live = db ? createLive({ db, accounts, friends, ...liveTiming }) : null;
   const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, onFriendEvent: live?.onFriendEvent, onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
@@ -203,7 +204,7 @@ export function createAppServer({
   const connections = createConnectionCounter(maxConnectionsPerIp);
   const attempts = new Map(); // address -> token bucket for new connections
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
-  const liveWss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+  const liveWss = new WebSocketServer({ noServer: true, maxPayload: MAX_LIVE_MESSAGE_BYTES });
 
   server.on('upgrade', (req, socket, head) => {
     socket.on('error', () => {});
@@ -223,7 +224,7 @@ export function createAppServer({
       return liveWss.handleUpgrade(req, socket, head, (ws) => {
         ws.isAlive = true;
         ws.on('pong', () => { ws.isAlive = true; });
-        live.connection(ws, sessionUserId);
+        live.connection(ws, sessionUserId, sessionUserId ? token : null);
       });
     }
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, address));
@@ -259,6 +260,7 @@ export function createAppServer({
   });
 
   const heartbeat = setInterval(() => {
+    live?.recheck();
     for (const ws of [...wss.clients, ...liveWss.clients]) {
       if (!ws.isAlive) { ws.terminate(); continue; }
       ws.isAlive = false;
@@ -279,6 +281,7 @@ export function createAppServer({
     http: server,
     rooms: manager,
     accounts,
+    live,
     mailer,
     serviceWorker: serveStatic.serviceWorker,
     close() {

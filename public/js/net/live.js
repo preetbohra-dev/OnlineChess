@@ -3,7 +3,7 @@
 //   bus events: 'live:hello' { you, showPresence }, 'live:presence' { code, online, playing },
 //               'live:notice' { kind, from, … }
 import { bus } from '../core/events.js';
-import { currentUser } from '../store/account.js';
+import { currentUser, refreshMe } from '../store/account.js';
 import { appToken } from './api.js';
 import { isNativeApp, SITE } from './platform.js';
 
@@ -46,7 +46,7 @@ function connect() {
       sendStatus();
       bus.emit('live:hello', me);
     } else if (m.type === 'presence') {
-      presence.set(m.code, { online: m.online, playing: m.playing });
+      if (m.removed) presence.delete(m.code); else presence.set(m.code, { online: m.online, playing: m.playing });
       bus.emit('live:presence', m);
     } else if (m.type === 'notice') {
       bus.emit('live:notice', m);
@@ -54,9 +54,13 @@ function connect() {
   };
   socket.onclose = (event) => {
     if (ws === socket) ws = null;
-    if (event.code === 4401 || !currentUser()) return; // signed out: stay closed
+    if (!currentUser()) return;
+    if (event.code === 4008) return; // open in too many tabs: this one waits until it is shown again
     attempts++;
-    timer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(attempts, 5)));
+    const later = () => { timer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(attempts, 5))); };
+    // Turned away as signed out: ask the server who we are before trying again.
+    if (event.code === 4401) refreshMe().then((user) => { if (user) later(); });
+    else later();
   };
 }
 

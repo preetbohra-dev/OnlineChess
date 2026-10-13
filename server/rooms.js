@@ -279,6 +279,21 @@ export function createRoomManager({
       }
     },
 
+    // A room for an accepted friend challenge: both seats are reserved (each player takes theirs
+    // with its token, through 'resume'). Until a player first arrives their seat counts as away
+    // only after `reservedMs`, so nobody can claim a win before the other has had time to open
+    // the game. -> { room, seats: { w: token, b: token } } | null when the server is full
+    reserve({ tc, names, reservedMs = 2 * 60_000 }) {
+      if (rooms.size >= maxRooms) return null;
+      let id;
+      do id = randomRoomId(); while (rooms.has(id));
+      const room = { id, creator: 'challenge', tc, timeControl: parseTimeControl(tc), seats: { w: null, b: null }, lastActivity: now() };
+      newGame(room);
+      for (const c of ['w', 'b']) room.seats[c] = { name: names[c], token: randomToken(), conn: null, disconnectedAt: now() + reservedMs - abandonMs };
+      rooms.set(id, room);
+      return { room: id, seats: { w: room.seats.w.token, b: room.seats.b.token } };
+    },
+
     // Drops idle rooms nobody is connected to, finished rooms after a grace period, and rooms
     // nobody ever joined once their creator has gone.
     gc() {

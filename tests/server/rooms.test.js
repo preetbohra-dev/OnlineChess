@@ -255,3 +255,34 @@ test('collecting a room releases players still connected to it', () => {
   manager.handle(host, { type: 'create', name: 'Ann', tc: 'none', color: 'w' });
   assert.ok(host.last('joined'), 'free to start a new room');
 });
+
+test('a reserved room (friend challenge): each player takes their seat by token; no early win by absence', () => {
+  const { env, manager } = harness();
+  const r = manager.reserve({ tc: '5+0', names: { w: 'Ana', b: 'Ben' } });
+  assert.match(r.room, /^[A-Z2-9]{6}$/);
+  const ana = conn();
+  manager.handle(ana, { type: 'resume', room: r.room, token: r.seats.w });
+  assert.equal(ana.last('joined').color, 'w');
+  assert.equal(ana.last('state').players.b.name, 'Ben');
+  env.advance(30_000);
+  manager.handle(ana, { type: 'claimAbandon' });
+  assert.equal(ana.last('error').code, 'not_abandoned', 'Ben has two minutes to arrive');
+  const ben = conn();
+  manager.handle(ben, { type: 'resume', room: r.room, token: r.seats.b });
+  assert.equal(ben.last('joined').color, 'b');
+  manager.handle(ana, { type: 'move', from: 'e2', to: 'e4', ply: 0 });
+  assert.equal(ben.last('state').ply, 1);
+  const stranger = conn();
+  manager.handle(stranger, { type: 'join', room: r.room, name: 'Eve' });
+  assert.equal(stranger.last('error').code, 'room_full');
+});
+
+test('a reserved seat nobody takes counts as away after the grace period', () => {
+  const { env, manager } = harness();
+  const r = manager.reserve({ tc: 'none', names: { w: 'Ana', b: 'Ben' } });
+  const ana = conn();
+  manager.handle(ana, { type: 'resume', room: r.room, token: r.seats.w });
+  env.advance(2 * 60_000 + 1);
+  manager.handle(ana, { type: 'claimAbandon' });
+  assert.equal(ana.last('state').status.over, true);
+});

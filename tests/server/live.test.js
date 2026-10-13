@@ -120,3 +120,45 @@ test('friend requests and acceptances arrive as notices', async () => {
   f.close();
   g.close();
 });
+
+test('flooding the channel closes it; a seventh connection waits instead of pushing others out', async () => {
+  const hal = await player('livehal');
+  const h = live({ cookie: hal.cookie });
+  await h.next('hello');
+  for (let i = 0; i < 30; i++) h.send({ type: 'status', playing: i % 2 === 0 });
+  assert.equal(await h.closed, 1008);
+
+  const conns = [];
+  for (let i = 0; i < 6; i++) { const c = live({ cookie: hal.cookie }); await c.next('hello'); conns.push(c); }
+  const seventh = live({ cookie: hal.cookie });
+  assert.equal(await seventh.closed, 4008);
+  for (const c of conns) assert.equal(c.ws.readyState, WebSocket.OPEN, 'nobody was pushed out');
+  for (const c of conns) c.close();
+});
+
+test('signing out closes the live channel at the next check; removed friends stop seeing each other', async () => {
+  const ivy = await player('liveivy');
+  const jon = await player('livejon');
+  await befriend(ivy, jon);
+  const i = live({ cookie: ivy.cookie });
+  await i.next('hello');
+  const j = live({ cookie: jon.cookie });
+  await j.next('hello');
+  await i.next('presence', (m) => m.code === jon.code && m.online);
+  await call('POST', '/api/friends/remove', { cookie: jon.cookie, body: { code: ivy.code } });
+  assert.deepEqual(await i.next('presence', (m) => m.removed), { type: 'presence', code: jon.code, online: false, playing: false, removed: true });
+
+  await call('POST', '/api/logout', { cookie: ivy.cookie, body: {} });
+  app.live.recheck();
+  assert.equal(await i.closed, 4401);
+  j.close();
+});
+
+test('a cookie from another site does not sign the channel in', async () => {
+  const kim = await player('livekim');
+  const k = live({ cookie: kim.cookie, origin: 'capacitor://localhost' }); // app origin: the cookie is ignored
+  await k.opened;
+  await assert.rejects(k.next('hello', () => true, 400), /no hello/, 'not signed in by the cookie');
+  k.send({ type: 'status', playing: true });
+  assert.equal(await k.closed, 4401, 'and anything but the token closes it');
+});

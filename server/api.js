@@ -373,6 +373,7 @@ export function createApi({
         if (!syncBuckets.take(`f${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
         const body = await readJson(req, AUTH_BODY_BYTES);
         if (!body.ok) return send(res, body.status, { error: body.error });
+        const before = route === 'POST /api/friends/remove' || route === 'POST /api/friends/decline' ? friends.find(body.value, user.id) : null;
         const r = {
           'POST /api/friends/request': () => friends.request(user.id, body.value),
           'POST /api/friends/accept': () => friends.accept(user.id, body.value),
@@ -380,7 +381,7 @@ export function createApi({
           'POST /api/friends/remove': () => friends.remove(user.id, body.value),
         }[route]();
         if (!r.ok) return send(res, r.status, { error: r.error });
-        const { ok, otherId, ...rest } = r;
+        const { ok, otherId = before?.id ?? null, ...rest } = r;
         onFriendEvent?.(route, user, otherId, rest);
         return send(res, 200, rest);
       }
