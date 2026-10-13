@@ -226,6 +226,9 @@ function wrap(db) {
     reportList: db.prepare(`SELECT u.username, u.hidden, COUNT(r.reporter_id) AS reports, MAX(r.created_at) AS last
       FROM users u JOIN reports r ON r.reported_id = u.id GROUP BY u.id ORDER BY last DESC`),
     friendCode: db.prepare('SELECT friend_code FROM users WHERE id = ?'),
+    presenceSetting: db.prepare('SELECT show_presence, challenge_emails FROM users WHERE id = ?'),
+    setPresence: db.prepare('UPDATE users SET show_presence = ? WHERE id = ?'),
+    setChallengeEmails: db.prepare('UPDATE users SET challenge_emails = ? WHERE id = ?'),
     setFriendCode: db.prepare('UPDATE users SET friend_code = ? WHERE id = ? AND friend_code IS NULL'),
     userByFriendCode: db.prepare('SELECT id, username, friend_code, hidden FROM users WHERE friend_code = ?'),
     logFriendRequest: db.prepare('INSERT INTO friend_requests (sender, target, created_at) VALUES (?, ?, ?)'),

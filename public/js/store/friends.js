@@ -24,3 +24,6 @@ const named = (f) => (f.code ? { code: f.code } : { name: f.username });
 export const acceptFriend = (f) => call('POST', '/api/friends/accept', named(f)).then(changed);
 export const declineFriend = (f) => call('POST', '/api/friends/decline', named(f)).then(changed);
 export const removeFriend = (f) => call('POST', '/api/friends/remove', named(f)).then(changed);
+
+// Show or hide your online status; get challenge emails while away (true/false; omit to keep).
+export const setPresence = (settings) => call('POST', '/api/account/presence', settings);

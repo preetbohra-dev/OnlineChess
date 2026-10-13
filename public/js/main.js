@@ -46,6 +46,7 @@ import { bus } from './core/events.js';
 import { loadProfile } from './store/profile.js';
 import { rankFor } from './core/progression.js';
 import { startNative } from './net/native.js';
+import { startLive } from './net/live.js';
 import { SITE } from './net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
@@ -199,6 +200,12 @@ trackProgress();
 trackGames();
 trackWeakSpots();
 trackSync();
+startLive();
+// Notices from the live channel that matter wherever the player is.
+bus.on('live:notice', (n) => {
+  if (n.kind === 'friend-request') toast(`${n.from.username} wants to be your friend. Open Friends to answer.`, { timeout: 6000 });
+  if (n.kind === 'friend-accepted') toast(`${n.from.username} accepted your friend request.`);
+});
 document.getElementById('btn-settings').addEventListener('click', () => openSettings());
 
 if (location.protocol === 'file:') {

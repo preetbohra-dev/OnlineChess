@@ -90,6 +90,7 @@ export function createApi({
   usernameSignup = false, // POST /api/register still makes username accounts (tests only)
   friends = null, // friends.js
   onFriendEvent = null, // (route, user, otherId, result): the live channel's notices
+  onPresenceChange = null, // (userId): a player showed or hid their online status
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -338,6 +339,21 @@ export function createApi({
         const row = db.q.userById.get(r.userId);
         boardCache.at = 0;
         return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
+      }
+
+      // Show or hide your online status from your friends; email me when challenged while away.
+      case 'POST /api/account/presence': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`p${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const { show, emails } = body.value ?? {};
+        if (show !== undefined && typeof show !== 'boolean') return send(res, 400, { error: 'Bad request.' });
+        if (emails !== undefined && typeof emails !== 'boolean') return send(res, 400, { error: 'Bad request.' });
+        if (show !== undefined) { db.q.setPresence.run(show ? 1 : 0, user.id); onPresenceChange?.(user.id); }
+        if (emails !== undefined) db.q.setChallengeEmails.run(emails ? 1 : 0, user.id);
+        const now = db.q.presenceSetting.get(user.id);
+        return send(res, 200, { show: Boolean(now.show_presence), emails: Boolean(now.challenge_emails) });
       }
 
       case 'GET /api/friends': {

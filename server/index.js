@@ -12,6 +12,7 @@ import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
 import { createGoogleAuth, APP_RETURN } from './google-auth.js';
 import { createFriends } from './friends.js';
+import { createLive } from './live.js';
 import { createApi, sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -123,7 +124,8 @@ export function createAppServer({
   const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
   const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
   const friends = db ? createFriends({ db }) : null;
-  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const live = db ? createLive({ db, accounts, friends }) : null;
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, onFriendEvent: live?.onFriendEvent, onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {
@@ -201,10 +203,12 @@ export function createAppServer({
   const connections = createConnectionCounter(maxConnectionsPerIp);
   const attempts = new Map(); // address -> token bucket for new connections
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
+  const liveWss = new WebSocketServer({ noServer: true, maxPayload: 1024 });
 
   server.on('upgrade', (req, socket, head) => {
     socket.on('error', () => {});
-    if (req.url.split('?')[0] !== '/ws') return rejectUpgrade(socket, 404, 'Not Found');
+    const wsPath = req.url.split('?')[0];
+    if (wsPath !== '/ws' && !(wsPath === '/live' && live)) return rejectUpgrade(socket, 404, 'Not Found');
     if (!originAllowed(req, hosts) && !fromApp(req)) return rejectUpgrade(socket, 403, 'Forbidden');
     const address = clientAddress(req);
     if (!attempts.has(address)) attempts.set(address, createTokenBucket(connectRate));
@@ -212,6 +216,16 @@ export function createAppServer({
     if (!connections.tryAcquire(address)) return rejectUpgrade(socket, 429, 'Too Many Requests');
     // Release the slot whenever this socket closes — including handshakes that never complete.
     socket.once('close', () => connections.release(address));
+    if (wsPath === '/live') {
+      // The website's own pages sign in with the session cookie; the apps send their token.
+      const token = originAllowed(req, hosts) ? readCookie(req, SESSION_COOKIE) : null;
+      const sessionUserId = token ? accounts.userForToken(token)?.id ?? null : null;
+      return liveWss.handleUpgrade(req, socket, head, (ws) => {
+        ws.isAlive = true;
+        ws.on('pong', () => { ws.isAlive = true; });
+        live.connection(ws, sessionUserId);
+      });
+    }
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, address));
   });
 
@@ -245,7 +259,7 @@ export function createAppServer({
   });
 
   const heartbeat = setInterval(() => {
-    for (const ws of wss.clients) {
+    for (const ws of [...wss.clients, ...liveWss.clients]) {
       if (!ws.isAlive) { ws.terminate(); continue; }
       ws.isAlive = false;
       ws.ping();
@@ -270,8 +284,11 @@ export function createAppServer({
     close() {
       clearInterval(heartbeat);
       clearInterval(gc);
+      live?.close();
       for (const ws of wss.clients) ws.terminate();
+      for (const ws of liveWss.clients) ws.terminate();
       wss.close();
+      liveWss.close();
       server.closeAllConnections();
       return new Promise((resolve) => server.close(() => resolve()));
     },

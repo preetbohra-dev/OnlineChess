@@ -2,7 +2,8 @@
 // answer, and your friends. Challenging a friend comes with the live channel (slices 34–35).
 import { h, fill } from '../ui/dom.js';
 import { currentUser } from '../store/account.js';
-import { loadFriends, requestFriend, acceptFriend, declineFriend, removeFriend } from '../store/friends.js';
+import { loadFriends, requestFriend, acceptFriend, declineFriend, removeFriend, setPresence } from '../store/friends.js';
+import { friendStatus, liveInfo } from '../net/live.js';
 import { confirmDialog } from '../ui/modal.js';
 import { copyText } from '../ui/game-screen.js';
 import { toast } from '../ui/toast.js';
@@ -31,6 +32,22 @@ export function renderFriends(outlet) {
   const row = (f, ...actions) => h('li', { class: 'friend-row', testid: `friend-${f.username}` },
     h('span', { class: 'friend-name' }, h('strong', {}, f.username), h('span', { class: 'muted small' }, f.code)),
     h('span', { class: 'friend-actions' }, ...actions));
+  // Online status for a friend: a dot and a word.
+  function status(f) {
+    const s = friendStatus(f.code);
+    const [cls, word] = s.playing ? ['playing', 'In a game'] : s.online ? ['online', 'Online'] : ['offline', 'Offline'];
+    return h('span', { class: `presence ${cls}`, testid: `presence-${f.username}` }, h('span', { class: 'presence-dot', 'aria-hidden': 'true' }), word);
+  }
+  function presenceToggle() {
+    const info = liveInfo();
+    if (!info) return null;
+    const box = h('input', { type: 'checkbox', testid: 'show-presence', checked: info.showPresence });
+    box.addEventListener('change', async () => {
+      const r = await setPresence({ show: box.checked });
+      if (r.ok) { info.showPresence = r.json.show; toast(r.json.show ? 'Friends can see when you are online.' : 'You now look offline to friends.'); } else { box.checked = !box.checked; toast(r.error, { kind: 'warn' }); }
+    });
+    return h('label', { class: 'check' }, box, ' Show friends when I am online');
+  }
 
   function addForm() {
     const input = h('input', {
@@ -82,11 +99,13 @@ export function renderFriends(outlet) {
         h('h2', { class: 'section-label' }, `Friends (${data.friends.length})`),
         data.friends.length
           ? h('ul', { class: 'friend-list' }, data.friends.map((f) => row(f,
+            status(f),
             h('button', {
               class: 'btn btn-small btn-danger-text', type: 'button', testid: `remove-${f.username}`,
               onClick: async () => { if (await confirmDialog({ title: `Remove ${f.username}?`, message: 'You will no longer be friends. You can add each other again later.', confirmLabel: 'Remove', danger: true })) { report(await removeFriend(f)); refresh(); } },
             }, 'Remove'))))
-          : h('p', { class: 'muted' }, 'No friends yet. Share your code, or add someone by theirs.')),
+          : h('p', { class: 'muted' }, 'No friends yet. Share your code, or add someone by theirs.'),
+        presenceToggle()),
       data.outgoing.length ? h('section', { class: 'menu-section', testid: 'friend-sent' },
         h('h2', { class: 'section-label' }, 'Waiting for an answer'),
         h('ul', { class: 'friend-list' }, data.outgoing.map((f) => row(f,
@@ -95,6 +114,12 @@ export function renderFriends(outlet) {
 
   draw();
   refresh();
-  const offs = [bus.on('account:change', refresh)];
+  // Live: statuses redraw in place; a new request or friend reloads the lists.
+  const offs = [
+    bus.on('account:change', refresh),
+    bus.on('live:presence', draw),
+    bus.on('live:hello', draw),
+    bus.on('live:notice', (n) => { if (n.kind.startsWith('friend')) refresh(); }),
+  ];
   return () => offs.forEach((off) => off());
 }

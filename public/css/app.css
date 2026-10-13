@@ -610,3 +610,7 @@ a.btn { text-decoration: none; }
 .friend-name { display: flex; flex-direction: column; min-width: 0; }
 .friend-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .friend-code { display: flex; align-items: center; gap: 12px; font-size: 1.4rem; letter-spacing: .06em; margin: 4px 0; }
+.presence { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
+.presence-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.presence.online .presence-dot { background: #2fb36b; }
+.presence.playing .presence-dot { background: #e0a526; }
