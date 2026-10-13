@@ -25,6 +25,9 @@ function readToken(room) {
 function saveToken(room, token) {
   try { sessionStorage.setItem(tokenKey(room), token); } catch { /* private mode: no resume */ }
 }
+// A seat handed out by the server (an accepted friend challenge): #/room/<id> takes it.
+export const rememberSeat = saveToken;
+export const hasSeat = (room) => Boolean(readToken(room));
 
 function nameField(store) {
   const input = h('input', {

@@ -118,6 +118,29 @@ const MIGRATIONS = [
      PRIMARY KEY (provider, subject)
    );
    CREATE INDEX identities_user ON identities(user_id);`,
+  // 8: friends. Each player has a permanent friend code (given on first use). One row per pair
+  // (user_lo < user_hi), pending until the other player accepts.
+  `ALTER TABLE users ADD COLUMN friend_code TEXT;
+   ALTER TABLE users ADD COLUMN show_presence INTEGER NOT NULL DEFAULT 1;
+   ALTER TABLE users ADD COLUMN challenge_emails INTEGER NOT NULL DEFAULT 1;
+   CREATE UNIQUE INDEX users_friend_code ON users(friend_code) WHERE friend_code IS NOT NULL;
+   CREATE TABLE friendships (
+     user_lo INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     user_hi INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     requested_by INTEGER NOT NULL,
+     status TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     accepted_at INTEGER,
+     PRIMARY KEY (user_lo, user_hi),
+     CHECK (user_lo < user_hi)
+   );
+   CREATE INDEX friendships_hi ON friendships(user_hi);
+   CREATE TABLE friend_requests (
+     sender INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     target INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at INTEGER NOT NULL
+   );
+   CREATE INDEX friend_requests_sender ON friend_requests(sender, created_at);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -202,6 +225,25 @@ function wrap(db) {
     clearReports: db.prepare('DELETE FROM reports WHERE reported_id = ?'),
     reportList: db.prepare(`SELECT u.username, u.hidden, COUNT(r.reporter_id) AS reports, MAX(r.created_at) AS last
       FROM users u JOIN reports r ON r.reported_id = u.id GROUP BY u.id ORDER BY last DESC`),
+    friendCode: db.prepare('SELECT friend_code FROM users WHERE id = ?'),
+    presenceSetting: db.prepare('SELECT show_presence, challenge_emails FROM users WHERE id = ?'),
+    setPresence: db.prepare('UPDATE users SET show_presence = ? WHERE id = ?'),
+    setChallengeEmails: db.prepare('UPDATE users SET challenge_emails = ? WHERE id = ?'),
+    setFriendCode: db.prepare('UPDATE users SET friend_code = ? WHERE id = ? AND friend_code IS NULL'),
+    userByFriendCode: db.prepare('SELECT id, username, friend_code, hidden FROM users WHERE friend_code = ?'),
+    logFriendRequest: db.prepare('INSERT INTO friend_requests (sender, target, created_at) VALUES (?, ?, ?)'),
+    requestsLoggedSince: db.prepare('SELECT COUNT(*) AS n FROM friend_requests WHERE sender = ? AND created_at > ?'),
+    requestsToSince: db.prepare('SELECT COUNT(*) AS n FROM friend_requests WHERE sender = ? AND target = ? AND created_at > ?'),
+    pendingIncoming: db.prepare("SELECT COUNT(*) AS n FROM friendships WHERE (user_lo = ? OR user_hi = ?) AND status = 'pending' AND requested_by <> ?"),
+    pruneFriendRequests: db.prepare('DELETE FROM friend_requests WHERE created_at < ?'),
+    friendship: db.prepare('SELECT * FROM friendships WHERE user_lo = ? AND user_hi = ?'),
+    addFriendship: db.prepare("INSERT INTO friendships (user_lo, user_hi, requested_by, status, created_at) VALUES (?, ?, ?, 'pending', ?)"),
+    acceptFriendship: db.prepare("UPDATE friendships SET status = 'accepted', accepted_at = ? WHERE user_lo = ? AND user_hi = ? AND status = 'pending'"),
+    deleteFriendship: db.prepare('DELETE FROM friendships WHERE user_lo = ? AND user_hi = ?'),
+    friendshipsOf: db.prepare(`SELECT f.status, f.requested_by, f.created_at, f.accepted_at, u.id, u.username, u.friend_code
+      FROM friendships f JOIN users u ON u.id = CASE WHEN f.user_lo = ? THEN f.user_hi ELSE f.user_lo END
+      WHERE f.user_lo = ? OR f.user_hi = ? ORDER BY u.username COLLATE NOCASE`),
+    friendCount: db.prepare("SELECT COUNT(*) AS n FROM friendships WHERE (user_lo = ? OR user_hi = ?) AND status = 'accepted'"),
     identity: db.prepare('SELECT * FROM identities WHERE provider = ? AND subject = ?'),
     addIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),
     identitiesForUser: db.prepare('SELECT provider, email FROM identities WHERE user_id = ?'),

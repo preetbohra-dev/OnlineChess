@@ -88,6 +88,11 @@ export function createApi({
   emailAuth = null, // email sign-up and sign-in (email-auth.js), when email is set up
   google = null, // "Continue with Google" (google-auth.js), when its keys are set up
   usernameSignup = false, // POST /api/register still makes username accounts (tests only)
+  friends = null, // friends.js
+  onFriendEvent = null, // (route, user, otherId, result): the live channel's notices
+  onPresenceChange = null, // (userId): a player showed or hid their online status
+  challenges = null, // friend-challenges.js
+  onAccountDeleted = null, // (userId): tidy what lives outside the database (open challenges)
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -285,6 +290,7 @@ export function createApi({
           ? (emailAuth.proveEmail(user, body.value?.code) ? (db.q.deleteUser.run(user.id), { ok: true }) : { ok: false, status: 401, error: 'That code is wrong or has expired.' })
           : await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
         if (!result.ok) return send(res, result.status, { error: result.error });
+        onAccountDeleted?.(user.id);
         boardCache.at = 0; // the player leaves the leaderboard at once
         return signedOut(req, res);
       }
@@ -336,6 +342,74 @@ export function createApi({
         const row = db.q.userById.get(r.userId);
         boardCache.at = 0;
         return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
+      }
+
+      // Show or hide your online status from your friends; email me when challenged while away.
+      case 'POST /api/account/presence': {
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`p${user.id}`)) return send(res, 429, { error: 'Too many requests.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const { show, emails } = body.value ?? {};
+        if (show !== undefined && typeof show !== 'boolean') return send(res, 400, { error: 'Bad request.' });
+        if (emails !== undefined && typeof emails !== 'boolean') return send(res, 400, { error: 'Bad request.' });
+        if (show !== undefined) { db.q.setPresence.run(show ? 1 : 0, user.id); onPresenceChange?.(user.id); }
+        if (emails !== undefined) db.q.setChallengeEmails.run(emails ? 1 : 0, user.id);
+        const now = db.q.presenceSetting.get(user.id);
+        return send(res, 200, { show: Boolean(now.show_presence), emails: Boolean(now.challenge_emails) });
+      }
+
+      case 'GET /api/friends': {
+        if (!friends) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
+        const settings = db.q.presenceSetting.get(user.id);
+        return send(res, 200, { ...friends.list(user.id), settings: { show: Boolean(settings.show_presence), emails: Boolean(settings.challenge_emails) } });
+      }
+
+      // request: ask by code or name · accept: say yes · decline / remove: forget the pair
+      // (decline a request, take back your own, or end a friendship).
+      case 'POST /api/friends/request':
+      case 'POST /api/friends/accept':
+      case 'POST /api/friends/decline':
+      case 'POST /api/friends/remove': {
+        if (!friends) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in to add friends.' });
+        if (!syncBuckets.take(`f${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const before = route === 'POST /api/friends/remove' || route === 'POST /api/friends/decline' ? friends.find(body.value, user.id) : null;
+        const r = {
+          'POST /api/friends/request': () => friends.request(user.id, body.value),
+          'POST /api/friends/accept': () => friends.accept(user.id, body.value),
+          'POST /api/friends/decline': () => friends.remove(user.id, body.value),
+          'POST /api/friends/remove': () => friends.remove(user.id, body.value),
+        }[route]();
+        if (!r.ok) return send(res, r.status, { error: r.error });
+        const { ok, otherId = before?.id ?? null, ...rest } = r;
+        onFriendEvent?.(route, user, otherId, rest);
+        return send(res, 200, rest);
+      }
+
+      // Challenges between friends (friend-challenges.js).
+      case 'GET /api/challenges': {
+        if (!challenges) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        return send(res, 200, challenges.list(user.id));
+      }
+      case 'POST /api/challenges':
+      case 'POST /api/challenges/answer':
+      case 'POST /api/challenges/cancel': {
+        if (!challenges) return send(res, 404, { error: 'Not found.' });
+        if (!user) return send(res, 401, { error: 'Sign in first.' });
+        if (!syncBuckets.take(`c${user.id}`)) return send(res, 429, { error: 'Too many requests. Wait a moment.' });
+        const body = await readJson(req, AUTH_BODY_BYTES);
+        if (!body.ok) return send(res, body.status, { error: body.error });
+        const r = route === 'POST /api/challenges' ? challenges.create(user.id, body.value ?? {})
+          : route === 'POST /api/challenges/answer' ? challenges.answer(user.id, body.value ?? {})
+            : challenges.cancel(user.id, body.value ?? {});
+        if (!r.ok) return send(res, r.status, { error: r.error });
+        const { ok, ...rest } = r;
+        return send(res, 200, rest);
       }
 
       // Which ways of signing in this server offers (the page shows only those).
