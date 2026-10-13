@@ -60,7 +60,8 @@ export function openModal({ title, body = [], actions = [], testid, dismissible 
   document.addEventListener('keydown', onKey, true);
   document.body.append(backdrop);
   requestAnimationFrame(() => backdrop.classList.add('show'));
-  (buttons.find((b) => b.classList.contains('btn-primary')) ?? buttons[0] ?? dialog).focus?.();
+  // Focus without scrolling: a tall dialog opens at its top, not at its buttons.
+  (buttons.find((b) => b.classList.contains('btn-primary')) ?? buttons[0] ?? dialog).focus?.({ preventScroll: true });
   const handle = { close, el: dialog };
   openModals.add(handle);
   return handle;
