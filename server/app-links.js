@@ -1,15 +1,23 @@
-// Files that let links to the site open the iPhone and Android apps. Their contents come from the
-// store accounts (Android: the SHA-256 fingerprints of the app-signing certificates in Play
-// Console; iOS: the Apple Developer team id), set as environment variables on the live server:
+// Files that let links to the site open the iPhone and Android apps. Android trusts an app whose
+// signing certificate's SHA-256 fingerprint is listed here; iOS needs the Apple Developer team id.
+// Fingerprints are public (anyone can read this file from the site), so the known ones live here;
+// more can be added on the live server without a release:
 //   ANDROID_CERT_SHA256=AB:CD:…[,…]   APPLE_TEAM_ID=ABCDE12345
 export const APP_ID = 'com.solankidigitaldrafts.chess'; // as in capacitor.config.json
+
+// The upload key (~/.jodhpur-studio/secrets/onlinechess-upload.jks): signs the .apk installed
+// directly. Add Play Console's app-signing key (Setup → App integrity) once the app is on Play.
+export const ANDROID_CERTS = [
+  '26:8F:9E:37:37:07:68:E9:86:10:CD:37:00:51:94:F6:5A:C6:48:65:8E:0C:0C:34:09:56:58:1F:D5:1C:90:58',
+];
 
 const FINGERPRINT = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
 
 // -> { '/.well-known/…': json string } for whatever is configured.
 export function appLinkFiles(env = process.env) {
   const files = {};
-  const certs = (env.ANDROID_CERT_SHA256 ?? '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  const extra = (env.ANDROID_CERT_SHA256 ?? '').split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  const certs = [...new Set([...ANDROID_CERTS, ...extra])];
   if (certs.length && !certs.every((c) => FINGERPRINT.test(c))) console.warn('ANDROID_CERT_SHA256 is not a list of SHA-256 fingerprints; Android app links are off.');
   if (env.APPLE_TEAM_ID && !/^[A-Z0-9]{10}$/.test(env.APPLE_TEAM_ID)) console.warn('APPLE_TEAM_ID is not a 10-character team id; iOS universal links are off.');
   if (certs.length && certs.every((c) => FINGERPRINT.test(c))) {

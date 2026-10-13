@@ -51,7 +51,8 @@ test('inside the app, Google opens in the browser and the one-time code comes ba
   let closed = 0;
   Object.assign(globalThis, {
     Capacitor: { isNativePlatform: () => true },
-    capacitorApp: { App: { addListener: (name, fn) => { listeners[name] = fn; }, exitApp() {} } },
+    capacitorApp: { App: { addListener: (name, fn) => { listeners[name] = fn; }, exitApp() {}, getLaunchUrl: async () => ({ url: 'https://chess.example/#/room/abc123' }) } },
+    location: { hash: '' },
     capacitorBrowser: { Browser: { open: async ({ url }) => { opened = url; }, close: async () => { closed++; }, addListener: (name, fn) => { listeners[`browser:${name}`] = fn; } } },
     document: { documentElement: { dataset: {} } },
     matchMedia: () => ({ matches: true, addEventListener() {} }),
@@ -60,6 +61,8 @@ test('inside the app, Google opens in the browser and the one-time code comes ba
   });
   try {
     startNative({ site: 'https://chess.example' });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(globalThis.location.hash, '#/room/abc123', 'a link that opened the app goes to its screen');
     const result = googleInBrowser('https://chess.example');
     const waitOpen = async () => { for (let i = 0; i < 100 && !opened; i++) await new Promise((r) => setTimeout(r, 5)); };
     await waitOpen();
@@ -81,7 +84,7 @@ test('inside the app, Google opens in the browser and the one-time code comes ba
     listeners['browser:browserFinished']();
     assert.deepEqual(await again, { cancelled: true });
   } finally {
-    for (const k of ['Capacitor', 'capacitorApp', 'capacitorBrowser', 'document', 'matchMedia', 'MutationObserver', 'requestAnimationFrame']) delete globalThis[k];
+    for (const k of ['Capacitor', 'capacitorApp', 'capacitorBrowser', 'document', 'matchMedia', 'MutationObserver', 'requestAnimationFrame', 'location']) delete globalThis[k];
   }
 });
 

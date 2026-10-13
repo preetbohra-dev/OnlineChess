@@ -3,21 +3,24 @@
 // configured by environment and answer 404 until then.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appLinkFiles, APP_ID } from '../../server/app-links.js';
+import { appLinkFiles, APP_ID, ANDROID_CERTS } from '../../server/app-links.js';
 
 const CERT = 'AB:CD:'.repeat(15) + 'AB:CD';
 
-test('without configuration there are no app-link files', () => {
-  assert.deepEqual(appLinkFiles({}), {});
+test('without configuration Android trusts the app signed with our upload key, and iOS has nothing yet', () => {
+  const files = appLinkFiles({});
+  assert.deepEqual(Object.keys(files), ['/.well-known/assetlinks.json']);
+  assert.deepEqual(JSON.parse(files['/.well-known/assetlinks.json'])[0].target.sha256_cert_fingerprints, ANDROID_CERTS);
+  assert.match(ANDROID_CERTS[0], /^26:8F:9E:37/);
 });
 
 test('Android: the app id and its signing certificates', () => {
   const files = appLinkFiles({ ANDROID_CERT_SHA256: `${CERT}, ${CERT.toLowerCase()}` });
   assert.deepEqual(JSON.parse(files['/.well-known/assetlinks.json']), [{
     relation: ['delegate_permission/common.handle_all_urls'],
-    target: { namespace: 'android_app', package_name: APP_ID, sha256_cert_fingerprints: [CERT, CERT] },
+    target: { namespace: 'android_app', package_name: APP_ID, sha256_cert_fingerprints: [...ANDROID_CERTS, CERT] },
   }]);
-  assert.equal(appLinkFiles({ ANDROID_CERT_SHA256: 'not a fingerprint' })['/.well-known/assetlinks.json'], undefined);
+  assert.equal(appLinkFiles({ ANDROID_CERT_SHA256: 'not a fingerprint' })['/.well-known/assetlinks.json'], undefined, 'a broken setting turns links off rather than half on');
 });
 
 test('iOS: the team and app, for the site root and its screens', () => {
@@ -37,7 +40,9 @@ test('the server serves them as JSON', async () => {
     assert.equal(r.status, 200);
     assert.equal(r.headers.get('content-type'), 'application/json');
     assert.ok((await r.json()).applinks);
-    assert.equal((await fetch(`${base}/.well-known/assetlinks.json`)).status, 404);
+    const android = await fetch(`${base}/.well-known/assetlinks.json`);
+    assert.equal(android.status, 200);
+    assert.equal((await android.json())[0].target.package_name, APP_ID);
   } finally {
     await app.close();
   }
