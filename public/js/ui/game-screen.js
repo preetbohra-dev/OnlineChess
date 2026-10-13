@@ -32,6 +32,7 @@ import { bus } from '../core/events.js';
 import { formatClock } from '../core/clock.js';
 import { appSettings, ANIMATION_MS } from '../store/settings.js';
 import { playSound, soundForMove } from './sound.js';
+import { siteOrigin } from '../net/platform.js';
 
 const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const CAPTURE_ORDER = ['q', 'r', 'b', 'n', 'p'];
@@ -407,7 +408,7 @@ export function mountGameScreen(container, session, { orientation = 'w', onNewGa
         lines: [`${session.persona.level} · ${describeResult(status)}`, opening ? `${opening.eco} · ${opening.name}` : '', 'Can you do better?'].filter(Boolean),
       },
       text: challengeText(c, { self: true }),
-      url: challengeUrl(location.origin, c),
+      url: challengeUrl(siteOrigin(), c),
       filename: 'onlinechess-win.png',
     });
   }

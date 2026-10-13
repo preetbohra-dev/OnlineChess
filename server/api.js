@@ -6,8 +6,9 @@
 //   GET /api/challenge/leaderboard
 //   POST /api/account/delete {password} · POST /api/report {username}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
-// SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock
-// after repeated wrong passwords (see auth.js).
+// SameSite=Lax session cookie). The apps call from their own origins (allowed by index.js) and
+// authenticate with `Authorization: Bearer <token>`, which no other site can send. Sign-in
+// attempts are rate-limited per address; accounts lock after repeated wrong passwords (auth.js).
 import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js';
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
@@ -66,6 +67,8 @@ function readJson(req, limit) {
 
 export function createApi({
   db, accounts, originAllowed, clientAddress, now = () => Date.now(),
+  appOrigin = () => false, // a request from an app page (capacitor://localhost, https://localhost)
+  isApp = () => false, // ... that also says it is the app (bearer tokens instead of cookies)
   authRate = { rate: 0.2, burst: 10 }, // sign-in attempts per address (IPv6: per /64)
   hashRate = { rate: 30, burst: 60 }, // password hashes per second for the whole server (CPU guard)
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
@@ -108,14 +111,21 @@ export function createApi({
     const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
     return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
   };
-  const signedIn = (req, res, result, status = 200) => send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) });
+  // The website gets an HttpOnly cookie; an app gets the token in the body and keeps it itself.
+  const signedIn = (req, res, result, status = 200) => (isApp(req)
+    ? send(res, status, { user: { username: result.user.username }, token: result.token })
+    : send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) }));
+  const signedOut = (req, res) => send(res, 200, { user: null }, isApp(req) ? {} : { 'Set-Cookie': cookie(req, '', 0) });
 
   return async function handleApi(req, res, pathname) {
     if (!db) return send(res, 503, { error: 'Accounts are not available on this server.' });
     const route = `${req.method} ${pathname}`;
     const write = req.method !== 'GET' && req.method !== 'HEAD';
     if (write && (!originAllowed(req) || req.headers['x-oc-request'] !== '1')) return send(res, 403, { error: 'Forbidden.' });
-    const token = readCookie(req, SESSION_COOKIE);
+    const bearer = /^Bearer ([\w-]{20,100})$/.exec(req.headers.authorization ?? '');
+    // App pages authenticate with the bearer token only, never a cookie (one more layer against
+    // cross-site use of a website session).
+    const token = bearer ? bearer[1] : appOrigin(req) ? null : readCookie(req, SESSION_COOKIE);
     const user = token ? accounts.userForToken(token) : null;
 
     switch (route) {
@@ -136,7 +146,7 @@ export function createApi({
 
       case 'POST /api/logout':
         if (token) accounts.logout(token);
-        return send(res, 200, { user: null }, { 'Set-Cookie': cookie(req, '', 0) });
+        return signedOut(req, res);
 
       case 'GET /api/state': {
         if (!user) return send(res, 401, { error: 'Sign in first.' });
@@ -258,7 +268,7 @@ export function createApi({
         const result = await accounts.deleteAccount(user.id, body.value?.password, addressOf(req));
         if (!result.ok) return send(res, result.status, { error: result.error });
         boardCache.at = 0; // the player leaves the leaderboard at once
-        return send(res, 200, { user: null }, { 'Set-Cookie': cookie(req, '', 0) });
+        return signedOut(req, res);
       }
 
       // A signed-in player reports another player's username. Enough different established reporters hide it

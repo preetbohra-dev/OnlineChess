@@ -24,7 +24,7 @@ export default defineConfig({
   webServer: {
     command: 'node server/index.js',
     // Every test browser connects from 127.0.0.1, so lift the per-address abuse limits.
-    env: { PORT: String(PORT), DB_PATH: ':memory:', PUSH: 'dry', VAPID_FILE: 'test-results/.vapid-e2e.json', WEEKLY_POOL_FILE: 'tests/fixtures/weekly-puzzles.json', AUTH_BURST: '10000', SYNC_BURST: '10000', ROOMS_PER_ADDRESS: '10000', ROOM_CREATES_PER_HOUR: '10000', WS_CONNECT_BURST: '10000', WS_CONNECTIONS_PER_ADDRESS: '10000' },
+    env: { PORT: String(PORT), DB_PATH: ':memory:', PUSH: 'dry', VAPID_FILE: 'test-results/.vapid-e2e.json', WEEKLY_POOL_FILE: 'tests/fixtures/weekly-puzzles.json', AUTH_BURST: '10000', APP_ORIGINS: `capacitor://localhost,https://localhost,http://localhost:${PORT}`, CSP_CONNECT_EXTRA: `http://127.0.0.1:${PORT} ws://127.0.0.1:${PORT}`, SYNC_BURST: '10000', ROOMS_PER_ADDRESS: '10000', ROOM_CREATES_PER_HOUR: '10000', WS_CONNECT_BURST: '10000', WS_CONNECTIONS_PER_ADDRESS: '10000' },
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: false, // always test the current code, never a stale dev server
   },

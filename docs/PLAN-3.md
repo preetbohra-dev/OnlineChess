@@ -74,7 +74,8 @@ lessons, openings, review), and passing both stores' review on the first or seco
   (Android), so session cookies to our domain are third-party and unreliable (iOS blocks them).
 - Apps sign in to `POST /api/login?client=app` and receive a session token in the response body
   (same session table, same expiry); they send it as `Authorization: Bearer …`. The token is
-  kept in the platform's secure storage (Keychain / Android Keystore).
+  kept in the app's sandboxed storage (security review: acceptable for a revocable 30-day
+  session; a Keychain/Keystore plugin is a later hardening step). App pages never use cookies.
 - CORS on `/api/*` for exactly those two app origins, no wildcard; the CSRF rule becomes
   "same-origin or app origin, plus `X-OC-Request`". The WebSocket origin check accepts the two
   app origins. Browsers keep using cookies, unchanged.

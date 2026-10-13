@@ -2,6 +2,7 @@
 // version is ready, and keeps the browser's install prompt for an "Install app" button.
 import { h } from './dom.js';
 import { bus } from '../core/events.js';
+import { isNativeApp } from '../net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
 let installPrompt = null;
@@ -49,6 +50,8 @@ function offerInstall() {
 }
 
 export function installPwa() {
+  // The iPhone and Android apps carry their files already and are installed from the stores.
+  if (isNativeApp()) return;
   bus.on('profile:change', ({ event, xp }) => {
     const won = event?.type === 'game' && event.status?.winner && event.status.winner === event.color;
     if (won || (event?.type === 'daily' && xp > 0)) offerInstall();

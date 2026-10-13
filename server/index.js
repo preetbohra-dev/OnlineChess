@@ -87,6 +87,9 @@ export function createAppServer({
   connectRate = { rate: 1, burst: 10 }, // new sockets per second per address
   unboundTimeoutMs = 30_000, // sockets that never create/join/resume are closed
   allowedHosts = (process.env.ALLOWED_HOSTS ?? '').split(',').map((x) => x.trim()).filter(Boolean),
+  // Pages of the iPhone (capacitor://localhost) and Android (https://localhost) apps, which call
+  // the API across origins with a bearer token.
+  appOrigins = (process.env.APP_ORIGINS ?? 'capacitor://localhost,https://localhost').split(',').map((x) => x.trim()).filter(Boolean),
   db = null, // accounts database (server/db.js); without it /api/ answers 503
   authRate,
   syncRate,
@@ -96,12 +99,30 @@ export function createAppServer({
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
-  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const apps = new Set(appOrigins);
+  const fromApp = (req) => typeof req.headers.origin === 'string' && apps.has(req.headers.origin);
+  const api = createApi({ db, accounts, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
     if (pathname.startsWith('/api/')) {
       for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
+      res.setHeader('Vary', 'Origin');
+      // CORS for the apps only: no cookies cross origins (no Allow-Credentials); they send a token.
+      if (fromApp(req)) {
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+        res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
+      }
+      if (req.method === 'OPTIONS') {
+        if (!fromApp(req)) { res.writeHead(403); res.end(); return; }
+        res.writeHead(204, {
+          'Access-Control-Allow-Methods': 'GET, POST, PUT',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OC-Request, X-OC-Client',
+          'Access-Control-Max-Age': '600',
+        });
+        res.end();
+        return;
+      }
       api(req, res, pathname).catch(() => fail(res));
       return;
     }
@@ -120,7 +141,7 @@ export function createAppServer({
   server.on('upgrade', (req, socket, head) => {
     socket.on('error', () => {});
     if (req.url.split('?')[0] !== '/ws') return rejectUpgrade(socket, 404, 'Not Found');
-    if (!originAllowed(req, hosts)) return rejectUpgrade(socket, 403, 'Forbidden');
+    if (!originAllowed(req, hosts) && !fromApp(req)) return rejectUpgrade(socket, 403, 'Forbidden');
     const address = clientAddress(req);
     if (!attempts.has(address)) attempts.set(address, createTokenBucket(connectRate));
     if (!attempts.get(address).take()) return rejectUpgrade(socket, 429, 'Too Many Requests');
