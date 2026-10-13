@@ -23,7 +23,8 @@ const ALLOWED = {
   pieceSet: PIECE_SETS.map((t) => t.id),
 };
 
-export const ANIMATION_MS = { off: 0, fast: 110, normal: 220 };
+// Piece slide durations. Kept short: on phones a longer glide reads as lag.
+export const ANIMATION_MS = { off: 0, fast: 80, normal: 140 };
 
 function sanitize(raw) {
   const out = { ...DEFAULT_SETTINGS };
