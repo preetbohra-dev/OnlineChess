@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// The upload key for Play Console lives outside the repository (docs/APPS.md). Without it the
+// release build is unsigned; debug builds never need it.
+def uploadPropsFile = file(System.getenv('ANDROID_UPLOAD_PROPERTIES') ?: "${System.getProperty('user.home')}/.jodhpur-studio/secrets/onlinechess-upload.properties")
+def uploadProps = new Properties()
+if (uploadPropsFile.exists()) uploadPropsFile.withInputStream { uploadProps.load(it) }
+
 android {
     namespace = "com.solankidigitaldrafts.chess"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,7 +14,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +22,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (uploadPropsFile.exists()) {
+                storeFile file(uploadProps['storeFile'])
+                storePassword uploadProps['storePassword']
+                keyAlias uploadProps['keyAlias']
+                keyPassword uploadProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (uploadPropsFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
