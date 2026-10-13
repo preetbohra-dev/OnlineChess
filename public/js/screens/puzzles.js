@@ -50,12 +50,19 @@ function mountPuzzle(board, lesson, onResult) {
         return;
       }
       playSound(soundForMove(r.move));
-      board.setPosition(puzzle.game.fen(), true);
-      board.highlight({ lastMove: r.move });
-      if (r.result === 'solved') { board.setInput(null); onResult({ result: 'solved' }); return; }
+      if (r.result === 'solved') {
+        board.setPosition(puzzle.game.fen(), true);
+        board.highlight({ lastMove: r.move });
+        board.setInput(null);
+        onResult({ result: 'solved' });
+        return;
+      }
+      // The game already holds the opponent's reply: show the solver's move first, then the reply
+      // a moment later (drawing the final position at once would play the reply twice).
       busy = true;
       const shown = puzzle.game.history({ verbose: true });
-      board.setPosition(shown[shown.length - 2].after, false);
+      board.setPosition(shown[shown.length - 2].after, true);
+      board.highlight({ lastMove: r.move });
       later(() => {
         busy = false;
         board.setPosition(puzzle.game.fen(), true);
