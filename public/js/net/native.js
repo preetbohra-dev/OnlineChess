@@ -76,6 +76,11 @@ export function startNative({ site, isDark = darkTheme } = {}) {
     else if (location.hash && location.hash !== '#/') location.hash = '#/';
     else App.exitApp();
   });
+  // A link that started the app from closed: Android hands it over once, at launch.
+  App?.getLaunchUrl?.().then((launch) => {
+    const route = launch?.url ? routeForLink(launch.url, site) : null;
+    if (route && route !== '#/') location.hash = route;
+  }).catch(() => {});
   App?.addListener('appUrlOpen', ({ url }) => {
     if (url.startsWith(`${APP_RETURN}?`)) {
       // Any app could open this address; only a well-formed code ends a sign-in under way.

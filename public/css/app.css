@@ -162,7 +162,10 @@ label.check { display: flex; align-items: center; gap: var(--space-2); margin: v
 @keyframes pulse { 50% { filter: brightness(1.25); } }
 
 /* ------------------------------------------------------------------ settings & setup */
-.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--border); margin: 0; }
+.setting-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--border); margin: 0; min-width: 0; }
+.setting-row > * { min-width: 0; }
+.setting-row > :first-child { flex: 1 1 10rem; } /* the label takes the room; controls wrap below only when it runs out */
+.setting-row > :last-child { flex: none; max-width: 100%; }
 .setting-row:last-child { border-bottom: 0; }
 .setting-row.inline { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); margin: 8px 0 20px; }
 .setting-text { display: flex; flex-direction: column; font-size: .95rem; padding: 0; }
@@ -181,6 +184,7 @@ label.check { display: flex; align-items: center; gap: var(--space-2); margin: v
 .switch input:checked + .switch-track::after { transform: translateX(18px); }
 .switch input:focus-visible + .switch-track { outline: 3px solid var(--gold); outline-offset: 2px; }
 .modal.settings { width: min(480px, 100%); }
+@media (max-width: 520px) { .modal { padding: 18px 16px; } }
 
 .tc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 560px; }
 .tc-option:first-child { grid-column: 1 / -1; flex-direction: row; justify-content: center; gap: 10px; }
@@ -326,15 +330,17 @@ html { scroll-padding-top: 72px; }
 
 /* ------------------------------------------------------------------ modal */
 .modal-backdrop {
-  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; align-items: safe center; padding: 16px;
-  overflow-y: auto; overscroll-behavior: contain; /* a dialog taller than the screen scrolls */
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+  padding: max(16px, var(--inset-top)) 16px max(16px, var(--inset-bottom));
   background: rgb(5 8 12 / .55); opacity: 0; transition: opacity .15s ease;
 }
 .modal-backdrop.show { opacity: 1; }
 .modal-backdrop:not(.show) { pointer-events: none; } /* a closing dialog must not swallow clicks */
 .modal {
-  width: min(440px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  width: min(440px, 100%); min-width: 0; box-sizing: border-box; background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
   padding: 22px; box-shadow: var(--shadow); transform: translateY(8px) scale(.98); transition: transform .18s ease;
+  /* Never larger than the screen: a tall dialog (Settings on a phone) scrolls inside itself. */
+  max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
 }
 .modal-backdrop.show .modal { transform: none; }
 .modal-title { font-size: 1.5rem; }

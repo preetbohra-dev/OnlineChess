@@ -62,3 +62,19 @@ test('auto-flip turns the board toward the player to move', async ({ page }) => 
   await move(page, 'e2', 'e4');
   await expect(page.getByTestId('game')).toHaveAttribute('data-orientation', 'b');
 });
+
+test('on a small phone the settings fit the screen, open at the top and scroll inside', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.goto('/#/');
+  await page.getByTestId('btn-settings').click();
+  const modal = page.getByTestId('settings-modal');
+  await expect(modal).toBeVisible();
+  const box = await modal.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(360);
+  expect(box.y + box.height).toBeLessThanOrEqual(640);
+  expect(await modal.evaluate((el) => el.scrollTop)).toBe(0);
+  await page.getByTestId('btn-settings-done').click();
+  await expect(modal).toBeHidden();
+});
