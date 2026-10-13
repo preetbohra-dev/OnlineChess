@@ -102,3 +102,10 @@ test('the emailed link: opening it changes nothing until the button, and the tok
   await page.getByTestId('btn-link-signin').click();
   await expect(page.getByTestId('rename-input')).toBeVisible(); // signed in, a new account
 });
+
+test('coming back from Google with a problem explains it on the Profile page', async ({ page }) => {
+  await page.goto('/#/welcome?error=taken');
+  await expect(page.getByTestId('toast').first()).toContainText('already belongs to another OnlineChess account');
+  await expect(page).toHaveURL(/#\/profile$/);
+  await expect(page.getByTestId('btn-google')).toHaveCount(0); // Google is not set up on the test server
+});

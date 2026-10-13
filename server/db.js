@@ -108,6 +108,16 @@ const MIGRATIONS = [
      tries INTEGER NOT NULL DEFAULT 0
    );
    CREATE INDEX email_tokens_email ON email_tokens(email);`,
+  // 7: sign-in with Google (and later Apple): one row per outside account linked to a player
+  `CREATE TABLE identities (
+     provider TEXT NOT NULL,
+     subject TEXT NOT NULL,
+     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     email TEXT,
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (provider, subject)
+   );
+   CREATE INDEX identities_user ON identities(user_id);`,
 ];
 
 export function openDatabase(file = process.env.DB_PATH || DEFAULT_DB_PATH) {
@@ -192,6 +202,9 @@ function wrap(db) {
     clearReports: db.prepare('DELETE FROM reports WHERE reported_id = ?'),
     reportList: db.prepare(`SELECT u.username, u.hidden, COUNT(r.reporter_id) AS reports, MAX(r.created_at) AS last
       FROM users u JOIN reports r ON r.reported_id = u.id GROUP BY u.id ORDER BY last DESC`),
+    identity: db.prepare('SELECT * FROM identities WHERE provider = ? AND subject = ?'),
+    addIdentity: db.prepare('INSERT INTO identities (provider, subject, user_id, email, created_at) VALUES (?, ?, ?, ?, ?)'),
+    identitiesForUser: db.prepare('SELECT provider, email FROM identities WHERE user_id = ?'),
     weekSet: db.prepare('SELECT data FROM challenge_sets WHERE week = ?'),
     addWeekSet: db.prepare('INSERT OR IGNORE INTO challenge_sets (week, data, created_at) VALUES (?, ?, ?)'),
     addGame: db.prepare('INSERT OR IGNORE INTO challenge_games (user_id, week, slot, outcome, points, plies, at) VALUES (?, ?, ?, ?, ?, ?, ?)'),

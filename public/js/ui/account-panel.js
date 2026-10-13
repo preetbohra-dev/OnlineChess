@@ -7,8 +7,18 @@ import { openModal } from './modal.js';
 import { toast } from './toast.js';
 import {
   currentUser, lastSynced, login, logout, syncNow, deleteAccount,
-  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen,
+  signUpWithEmail, requestCode, useCode, addEmail, loadAccount, changePassword, rename, nameWanted, nameChosen, loadProviders,
 } from '../store/account.js';
+import { isNativeApp } from '../net/platform.js';
+
+// Google's "G", in its own colours (Google's sign-in button guidelines).
+const GOOGLE_G = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.2l7.9 6.2C12.4 13.7 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.8c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.2C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.8l7.9-6.2z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.8c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.2-13.5-10l-7.9 6.2C6.6 42.6 14.6 48 24 48z"/></svg>';
+function googleButton(href, label, testid) {
+  const a = h('a', { class: 'btn btn-google', href, testid });
+  a.innerHTML = GOOGLE_G; // a fixed, trusted image
+  a.append(h('span', {}, label));
+  return a;
+}
 
 const field = (label, el, hint) => h('label', { class: 'field' }, h('span', {}, label), el, hint ? h('span', { class: 'muted small' }, hint) : null);
 
@@ -26,6 +36,8 @@ export function accountSection() {
   let askName = false; // just created: suggest choosing a name
   let loadedFor = null;
   let confirming = false; // the code confirms a new sign-up: a password may be chosen with it
+  let google = false; // the server offers "Continue with Google" (website only for now)
+  loadProviders().then((p) => { if (p.google && !isNativeApp()) { google = true; render(); } });
   const typed = {}; // what the player typed, by field, kept when the form is drawn again
   // An input that keeps its value across redraws (passwords included, within this panel only).
   const input = (props) => h('input', { class: 'text-input', ...props, value: typed[props.testid] ?? props.value ?? '', onInput: (e) => { typed[props.testid] = e.target.value; } });
@@ -59,7 +71,7 @@ export function accountSection() {
   // --- Signed out ---------------------------------------------------------------------------
   function startForm() {
     const emailInput = input({ type: 'email', testid: 'account-email', autocomplete: 'email', required: true, maxlength: 254, 'aria-label': 'Email', value: email });
-    return h('form', {
+    const form = h('form', {
       class: 'account-form',
       onSubmit: submit(async () => {
         email = emailInput.value.trim();
@@ -78,6 +90,11 @@ export function accountSection() {
       h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-use-password', onClick: () => go('password') }, 'Sign in with a password'),
       ' · ',
       h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-create-account', onClick: () => go('signup') }, 'Create an account')));
+    if (!google || forgot) return form;
+    return h('div', { class: 'account-start' },
+      googleButton('/auth/google/start', 'Continue with Google', 'btn-google'),
+      h('p', { class: 'or-line', 'aria-hidden': 'true' }, h('span', {}, 'or')),
+      form);
   }
 
   function passwordForm() {
@@ -261,6 +278,8 @@ export function accountSection() {
         ? h('p', { class: 'muted small', testid: 'account-email-line' }, `Email: ${details.email} `, h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-change-email', onClick: () => go('email') }, 'Change'))
         : details ? h('p', { class: 'account-nudge', testid: 'add-email-nudge' }, 'Add an email so you can always get back into this account. ',
           h('button', { class: 'btn btn-link', type: 'button', testid: 'btn-add-email-open', onClick: () => go('email') }, 'Add email')) : null,
+      details?.google ? h('p', { class: 'muted small', testid: 'google-linked' }, 'Google account connected: you can sign in with Google.')
+        : google && details ? h('p', {}, googleButton('/auth/google/start?link=1', 'Connect Google', 'btn-google-link')) : null,
       h('p', { class: 'muted small', testid: 'account-synced' }, synced ? `Last synced ${synced.toLocaleTimeString()}.` : 'Syncing…'),
     ];
     if (mode === 'name') view.push(nameForm(user));

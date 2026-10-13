@@ -39,7 +39,13 @@ function send(res, status, body, headers = {}) {
   res.end(json);
 }
 
-function readCookie(req, name) {
+// The session cookie: HttpOnly, SameSite=Lax, and Secure except on plain-http local development.
+export function sessionCookie(req, token, maxAge) {
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
+  return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
+}
+
+export function readCookie(req, name) {
   for (const part of (req.headers.cookie ?? '').split(';')) {
     const [k, ...v] = part.trim().split('=');
     if (k === name) return v.join('=');
@@ -80,6 +86,7 @@ export function createApi({
   push = null, // { publicKey } when reminders are running
   puzzles = null, // the puzzle library (rows parsed) for the weekly challenge
   emailAuth = null, // email sign-up and sign-in (email-auth.js), when email is set up
+  google = null, // "Continue with Google" (google-auth.js), when its keys are set up
   outbox = null, // test runs only: the dry-run mailer's outbox, readable at /api/_test/outbox
 }) {
   // The week's set is chosen once, when the week is first served, and stored: later changes to
@@ -113,11 +120,7 @@ export function createApi({
   const hashBucket = createTokenBucket(hashRate);
   const addressOf = (req) => addressKey(clientAddress(req));
 
-  // Secure cookies everywhere except plain-http local development.
-  const cookie = (req, token, maxAge) => {
-    const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
-    return `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${local ? '' : '; Secure'}`;
-  };
+  const cookie = sessionCookie;
   // The website gets an HttpOnly cookie; an app gets the token in the body and keeps it itself.
   const signedIn = (req, res, result, status = 200) => (isApp(req)
     ? send(res, status, { user: { username: result.user.username }, token: result.token })
@@ -305,8 +308,13 @@ export function createApi({
       case 'GET /api/account': {
         if (!user) return send(res, 401, { error: 'Sign in first.' });
         const row = db.q.userById.get(user.id);
-        return send(res, 200, { username: row.username, email: row.email ?? null, hasPassword: Boolean(row.has_password) });
+        const providers = db.q.identitiesForUser.all(user.id).map((i) => i.provider);
+        return send(res, 200, { username: row.username, email: row.email ?? null, hasPassword: Boolean(row.has_password), google: providers.includes('google') });
       }
+
+      // Which ways of signing in this server offers (the page shows only those).
+      case 'GET /api/auth/providers':
+        return send(res, 200, { email: Boolean(emailAuth), google: Boolean(google) });
 
       case 'POST /api/signup':
       case 'POST /api/auth/request':

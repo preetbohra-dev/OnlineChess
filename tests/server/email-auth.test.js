@@ -44,7 +44,7 @@ test('sign up with email: confirm with the code (choosing a password there), the
   assert.equal(done.status, 200);
   assert.deepEqual(done.json, { user: { username: 'AnaPlays' }, created: true, suggestedName: false });
   assert.match(done.cookie, /^oc_session=/);
-  assert.deepEqual((await call('GET', '/api/account', { cookie: done.cookie })).json, { username: 'AnaPlays', email: 'ana@example.com', hasPassword: true });
+  assert.deepEqual((await call('GET', '/api/account', { cookie: done.cookie })).json, { username: 'AnaPlays', email: 'ana@example.com', hasPassword: true, google: false });
   assert.equal((await call('POST', '/api/auth/code', { body: { email: 'ana@example.com', code } })).status, 400, 'a code works once');
 
   assert.equal((await call('POST', '/api/login', { body: { username: 'ANA@example.com', password: PW } })).status, 200, 'sign in with the email');
@@ -71,7 +71,7 @@ test('sign in (and sign up) with just an emailed code: no password, a suggested 
   assert.equal(r.json.suggestedName, true);
   assert.match(r.json.user.username, /^player\d+$/, 'never the email\'s own name (it would be public)');
   const name = r.json.user.username;
-  assert.deepEqual((await call('GET', '/api/account', { cookie: r.cookie })).json, { username: name, email: 'casual.player@example.com', hasPassword: false });
+  assert.deepEqual((await call('GET', '/api/account', { cookie: r.cookie })).json, { username: name, email: 'casual.player@example.com', hasPassword: false, google: false });
   assert.equal((await call('POST', '/api/login', { body: { username: name, password: '!' } })).status, 401, 'no password matches a password-less account');
   assert.equal((await call('POST', '/api/login', { body: { username: 'casual.player@example.com', password: 'anything at all' } })).status, 401);
 

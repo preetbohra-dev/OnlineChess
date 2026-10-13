@@ -54,6 +54,8 @@ async function ask(method, path, body) {
 // (until the player saves a name or keeps this one; the page may redraw several times meanwhile).
 let justCreated = false;
 export const nameWanted = () => justCreated && Boolean(current);
+// After "Continue with Google" made a new account (the server says so on the way back).
+export function markNameWanted() { justCreated = true; }
 export function nameChosen() { justCreated = false; }
 
 // A request that signs in when it succeeds (the session cookie, or the app's token).
@@ -80,6 +82,12 @@ export const useLink = (token, store = appStore()) => signIn('/api/auth/link', {
 // `proof`: { password } or { code } (a code sent to the account's current email).
 export const addEmail = (email, proof = {}) => ask('POST', '/api/account/email', { email, ...proof });
 export const loadAccount = () => ask('GET', '/api/account');
+// Which ways of signing in the server offers: { email, google }. Asked once per page load.
+let providers = null;
+export function loadProviders() {
+  providers ??= ask('GET', '/api/auth/providers').then((r) => (r.ok ? r.json : { email: false, google: false }));
+  return providers;
+}
 export const changePassword = (current, password, code) => ask('POST', '/api/account/password', { password, ...(code ? { code } : { current }) });
 export async function rename(username) {
   const r = await ask('POST', '/api/account/name', { username });

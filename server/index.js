@@ -10,6 +10,8 @@ import { createStaticHandler, SECURITY_HEADERS } from './static.js';
 import { appLinkFiles } from './app-links.js';
 import { createMailer, createMailLimits, loadAuthEnv } from './mail.js';
 import { createEmailAuth } from './email-auth.js';
+import { createGoogleAuth } from './google-auth.js';
+import { sessionCookie, SESSION_COOKIE, readCookie } from './api.js';
 import { createApi } from './api.js';
 import { createAccounts } from './auth.js';
 import { openDatabase, DEFAULT_DB_PATH } from './db.js';
@@ -17,7 +19,7 @@ import { startReminders } from './push.js';
 import { loadPuzzleLibrary, WEEKLY_POOL_FILE } from './challenge.js';
 import { createRoomManager } from './rooms.js';
 import { parseClientMessage, MAX_MESSAGE_BYTES } from './protocol.js';
-import { createTokenBucket, createConnectionCounter } from './rate-limit.js';
+import { createTokenBucket, createConnectionCounter, createBucketMap, addressKey } from './rate-limit.js';
 
 // A daily snapshot of the accounts database (VACUUM INTO), keeping the newest seven.
 function scheduleBackups(db, dir, keep = 7) {
@@ -103,6 +105,9 @@ export function createAppServer({
   mailer = createMailer({ apiKey: loadAuthEnv().RESEND_API_KEY ?? '' }),
   publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
   mailLimits = createMailLimits(),
+  // "Continue with Google" (server/google-auth.js): on when the client id and secret are set.
+  googleKeys = (({ GOOGLE_CLIENT_ID: id, GOOGLE_CLIENT_SECRET: secret }) => (id && secret ? { clientId: id, clientSecret: secret } : null))(loadAuthEnv()),
+  googleFetch = globalThis.fetch, // tests replace Google's endpoints
   testHooks = process.env.TEST_HOOKS === '1', // test runs: expose the dry-run outbox
 } = {}) {
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
@@ -114,7 +119,31 @@ export function createAppServer({
   // The dry-run outbox holds real codes: readable only by test runs on an in-memory database.
   const inMemory = Boolean(db) && !(db.raw.location?.() ?? '');
   const outbox = testHooks && process.env.MAIL === 'dry' && inMemory ? mailer.outbox : null;
-  const api = createApi({ db, accounts, emailAuth, outbox, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const google = db && googleKeys ? createGoogleAuth({ db, accounts, ...googleKeys, origin: publicOrigin, fetchImpl: googleFetch }) : null;
+  const googleStarts = createBucketMap({ rate: 0.5, burst: 20 }); // per address
+  const api = createApi({ db, accounts, emailAuth, outbox, google, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
+  // name to a new account) or explains what went wrong.
+  const redirect = (res, location, cookies = []) => {
+    res.writeHead(302, { Location: location, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) });
+    res.end();
+  };
+  async function handleGoogle(req, res, pathname) {
+    const secure = !/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host ?? '');
+    if (!google) return redirect(res, '/#/welcome?error=off');
+    if (pathname === '/auth/google/start') {
+      if (!googleStarts.take(addressKey(clientAddress(req)))) return redirect(res, '/#/welcome?error=busy');
+      const query = new URL(req.url, 'http://x').searchParams;
+      const token = readCookie(req, SESSION_COOKIE);
+      const linkUserId = query.get('link') === '1' && token ? accounts.userForToken(token)?.id ?? null : null;
+      const { location, state } = google.start({ linkUserId });
+      return redirect(res, location, [google.stateCookie(state, secure)]);
+    }
+    const r = await google.callback(req, new URL(req.url, 'http://x').searchParams);
+    const clear = google.clearStateCookie(secure);
+    if (!r.ok) return redirect(res, `/#/welcome?error=${r.reason}`, [clear]);
+    return redirect(res, r.created ? '/#/welcome?new=1' : '/#/welcome', [clear, sessionCookie(req, r.token, 30 * 86_400)]);
+  }
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
@@ -122,6 +151,10 @@ export function createAppServer({
     if (Object.hasOwn(appLinks, pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600', 'X-Content-Type-Options': 'nosniff' });
       res.end(req.method === 'HEAD' ? undefined : appLinks[pathname]);
+      return;
+    }
+    if ((pathname === '/auth/google/start' || pathname === '/auth/google/callback') && req.method === 'GET') {
+      handleGoogle(req, res, pathname).catch(() => fail(res));
       return;
     }
     if (pathname.startsWith('/api/')) {
