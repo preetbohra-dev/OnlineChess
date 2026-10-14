@@ -11,7 +11,7 @@ test('without configuration Android trusts the app signed with our upload key, a
   const files = appLinkFiles({});
   assert.deepEqual(Object.keys(files), ['/.well-known/assetlinks.json']);
   assert.deepEqual(JSON.parse(files['/.well-known/assetlinks.json'])[0].target.sha256_cert_fingerprints, ANDROID_CERTS);
-  assert.match(ANDROID_CERTS[0], /^26:8F:9E:37/);
+  assert.deepEqual(ANDROID_CERTS.map((c) => c.slice(0, 11)), ['1E:0D:68:48', '26:8F:9E:37'], 'Play signing, then the upload key');
 });
 
 test('Android: the app id and its signing certificates', () => {
