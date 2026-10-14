@@ -5,10 +5,12 @@
 //   ANDROID_CERT_SHA256=AB:CD:…[,…]   APPLE_TEAM_ID=ABCDE12345
 export const APP_ID = 'com.solankidigitaldrafts.chess'; // as in capacitor.config.json
 
-// The upload key (~/.jodhpur-studio/secrets/onlinechess-upload.jks): signs the .apk installed
-// directly. Add Play Console's app-signing key (Setup → App integrity) once the app is on Play.
+// Both certificates that sign the app: Google Play's app-signing key (Play Console → Test and
+// release → App integrity → App signing), for installs from the Play Store, and our upload key
+// (~/.jodhpur-studio/secrets/onlinechess-upload.jks), for the .apk installed directly.
 export const ANDROID_CERTS = [
-  '26:8F:9E:37:37:07:68:E9:86:10:CD:37:00:51:94:F6:5A:C6:48:65:8E:0C:0C:34:09:56:58:1F:D5:1C:90:58',
+  '1E:0D:68:48:BC:F2:55:78:FC:C0:3E:88:85:49:7C:64:46:86:D7:BA:CC:23:4B:26:3A:3A:31:CA:FA:CE:25:28', // Play app signing
+  '26:8F:9E:37:37:07:68:E9:86:10:CD:37:00:51:94:F6:5A:C6:48:65:8E:0C:0C:34:09:56:58:1F:D5:1C:90:58', // upload key
 ];
 
 const FINGERPRINT = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
