@@ -1,10 +1,10 @@
 // The live channel (WebSocket /live) for signed-in players: who of their friends is online or in a
-// game, and notices (friend requests, challenges) the moment they happen. The website signs in
-// with its session cookie on the upgrade request; the apps send { type: 'auth', token } first.
+// game, and notices (friend requests, challenges) the moment they happen. The page signs in with
+// its session cookie on the upgrade request.
 //   server -> { type: 'hello', you, showPresence, friends: [{ code, online, playing }] }
 //             { type: 'presence', code, online, playing }
 //             { type: 'notice', kind, from, ... }
-//   client -> { type: 'auth', token } (apps, first) · { type: 'status', playing }
+//   client -> { type: 'status', playing }
 import { createTokenBucket } from './rate-limit.js';
 
 const AUTH_TIMEOUT_MS = 10_000;
@@ -91,14 +91,7 @@ export function createLive({ db, accounts, friends, now = () => Date.now(), sche
         if (isBinary || data.length > MAX_LIVE_MESSAGE_BYTES) return ws.close(1009, 'too large');
         let m;
         try { m = JSON.parse(data.toString('utf8')); } catch { return ws.close(1007, 'bad message'); }
-        if (!userId) {
-          const user = m?.type === 'auth' && typeof m.token === 'string' ? accounts.userForToken(m.token) : null;
-          if (!user) return ws.close(4401, 'sign in');
-          clearTimeout(timer);
-          conn.token = m.token;
-          if (attach(user.id, conn)) userId = user.id;
-          return undefined;
-        }
+        if (!userId) return ws.close(4401, 'sign in');
         if (m?.type === 'status' && typeof m.playing === 'boolean' && m.playing !== conn.playing) {
           const before = statusOf(userId).playing;
           conn.playing = m.playing;

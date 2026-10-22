@@ -8,7 +8,6 @@ import { loadLibrary, loadPuzzleStats, recordPuzzle, recordRush, markSeen } from
 import { playSound, soundForMove } from '../ui/sound.js';
 import { prepareShare, sharePrepared } from '../ui/share.js';
 import { challengeUrl, challengeText } from '../core/challenge.js';
-import { siteOrigin } from '../net/platform.js';
 
 const SETUP_MS = 500;
 
@@ -344,7 +343,7 @@ function mountRush(outlet, puzzles, seconds) {
     preparedShare = prepareShare({
       card: { fen: lesson.fen, orientation: current?.color ?? 'w', title: `I scored ${score} in Puzzle Rush!`, lines: ['Three minutes, three strikes.', 'Can you beat it?'] },
       text: challengeText(c, { self: true }),
-      url: challengeUrl(siteOrigin(), c),
+      url: challengeUrl(location.origin, c),
       filename: 'onlinechess-rush.png',
     });
   }

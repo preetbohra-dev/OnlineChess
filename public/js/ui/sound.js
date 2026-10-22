@@ -1,7 +1,6 @@
 // Synthesised game sounds (no audio files). The AudioContext is created on the first user
 // gesture, as browsers require, and only while sound is enabled.
 import { appSettings } from '../store/settings.js';
-import { haptic } from '../net/native.js';
 
 let ctx = null;
 const debug = (globalThis.__oc ??= {});
@@ -63,10 +62,7 @@ const RECIPES = {
   notify: (c) => { tone(c, { freq: 523, dur: 0.12, gain: 0.1 }); tone(c, { freq: 784, start: 0.1, dur: 0.18, gain: 0.1 }); },
 };
 
-const HAPTIC = new Set(['move', 'capture', 'check', 'castle']);
-
 export function playSound(name) {
-  if (HAPTIC.has(name)) haptic(name); // inside the apps only
   if (!appSettings().get().sound || !RECIPES[name]) return;
   debug.soundsPlayed++;
   if (!ctx || ctx.state !== 'running') return;

@@ -1,8 +1,8 @@
 // Installable app: registers the service worker (offline play), shows a banner when a new
-// version is ready, and keeps the browser's install prompt for an "Install app" button.
+// version is ready, and keeps the browser's install prompt for an "Install app" button. There is
+// no store app: on a phone the site itself says how to put it on the home screen.
 import { h } from './dom.js';
 import { bus } from '../core/events.js';
-import { isNativeApp } from '../net/platform.js';
 
 const debug = (globalThis.__oc ??= {});
 let installPrompt = null;
@@ -36,7 +36,7 @@ const OFFER_KEY = 'oc.v1.install-offered';
 
 // Offer installation at a good moment (a win, a solved daily), at most once a week.
 function offerInstall() {
-  if (!installPrompt || document.querySelector('[data-testid="install-banner"]')) return;
+  if (!installPrompt || document.querySelector('[data-testid="install-banner"], [data-testid="install-hint"]')) return;
   try {
     const last = Number(localStorage.getItem(OFFER_KEY) ?? 0);
     if (Date.now() - last < 7 * 86_400_000) return;
@@ -49,9 +49,33 @@ function offerInstall() {
   document.body.append(banner);
 }
 
+const HINT_KEY = 'oc.v1.install-hint';
+const installed = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isPhone = () => matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
+const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+// On a phone, until OnlineChess is installed or the hint is dismissed: how to add it to the home
+// screen. Android gets an Install button (once the browser offers it); iPhone, which has no
+// prompt, gets the steps.
+function phoneHint() {
+  if (installed() || !isPhone() || document.querySelector('[data-testid="install-hint"]')) return;
+  try { if (localStorage.getItem(HINT_KEY) === 'dismissed') return; } catch { /* storage blocked: show it */ }
+  const ios = isIos();
+  if (!ios && !installPrompt) return;
+  const hint = h('div', { class: 'update-banner', testid: 'install-hint', role: 'status' },
+    h('span', {}, ios
+      ? 'Play it like an app: tap Share, then Add to Home Screen. Full screen, no browser bars.'
+      : 'Play it like an app: full screen, no browser bars, one tap from your home screen.'),
+    ios ? null : h('button', { class: 'btn btn-small btn-primary', type: 'button', testid: 'btn-install-hint', onClick: async () => { if (await install()) hint.remove(); } }, 'Install'),
+    h('button', { class: 'btn btn-small', type: 'button', 'aria-label': 'Hide this tip', onClick: () => {
+      hint.remove();
+      try { localStorage.setItem(HINT_KEY, 'dismissed'); } catch { /* hidden for this visit only */ }
+    } }, '✕'));
+  document.body.append(hint);
+  bus.on('pwa:install-changed', () => { if (!ios && !installPrompt) hint.remove(); });
+}
+
 export function installPwa() {
-  // The iPhone and Android apps carry their files already and are installed from the stores.
-  if (isNativeApp()) return;
   bus.on('profile:change', ({ event, xp }) => {
     const won = event?.type === 'game' && event.status?.winner && event.status.winner === event.color;
     if (won || (event?.type === 'daily' && xp > 0)) offerInstall();
@@ -60,8 +84,10 @@ export function installPwa() {
     event.preventDefault(); // offered from our own button instead of the browser's mini-infobar
     installPrompt = event;
     bus.emit('pwa:install-changed');
+    phoneHint();
   });
   window.addEventListener('appinstalled', () => { installPrompt = null; bus.emit('pwa:install-changed'); });
+  if (isIos()) phoneHint();
 
   // Service workers need a secure context (https, or localhost while developing).
   if (!('serviceWorker' in navigator) || !window.isSecureContext) return;

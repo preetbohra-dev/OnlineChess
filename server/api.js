@@ -10,9 +10,7 @@
 //   POST /api/auth/link {token, password?} · GET /api/account · POST /api/account/email {email, password | code} ·
 //   POST /api/account/name {username} · POST /api/account/password {current | code, password}
 // Writes need a same-origin request with the X-OC-Request header (CSRF protection on top of the
-// SameSite=Lax session cookie). The apps call from their own origins (allowed by index.js) and
-// authenticate with `Authorization: Bearer <token>`, which no other site can send. Sign-in
-// attempts are rate-limited per address; accounts lock after repeated wrong passwords (auth.js).
+// SameSite=Lax session cookie). Sign-in attempts are rate-limited per address; accounts lock after repeated wrong passwords (auth.js).
 import { createTokenBucket, createBucketMap, addressKey } from './rate-limit.js';
 import { mergeStates, normalizeState, MAX_STATE_BYTES } from '../public/js/core/sync.js';
 import { validSubscription, validTimeZone, MAX_SUBSCRIPTIONS_PER_USER, MAX_SUBSCRIPTIONS } from './push.js';
@@ -78,8 +76,6 @@ function readJson(req, limit) {
 
 export function createApi({
   db, accounts, originAllowed, clientAddress, now = () => Date.now(),
-  appOrigin = () => false, // a request from an app page (capacitor://localhost, https://localhost)
-  isApp = () => false, // ... that also says it is the app (bearer tokens instead of cookies)
   authRate = { rate: 0.2, burst: 10 }, // sign-in attempts per address (IPv6: per /64)
   hashRate = { rate: 30, burst: 60 }, // password hashes per second for the whole server (CPU guard)
   syncRate = { rate: 0.5, burst: 5 }, // state uploads per account and per address
@@ -127,21 +123,16 @@ export function createApi({
   const addressOf = (req) => addressKey(clientAddress(req));
 
   const cookie = sessionCookie;
-  // The website gets an HttpOnly cookie; an app gets the token in the body and keeps it itself.
-  const signedIn = (req, res, result, status = 200) => (isApp(req)
-    ? send(res, status, { user: { username: result.user.username }, token: result.token })
-    : send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) }));
-  const signedOut = (req, res) => send(res, 200, { user: null }, isApp(req) ? {} : { 'Set-Cookie': cookie(req, '', 0) });
+  // The session lives in an HttpOnly cookie.
+  const signedIn = (req, res, result, status = 200) => send(res, status, { user: { username: result.user.username } }, { 'Set-Cookie': cookie(req, result.token, 30 * 86_400) });
+  const signedOut = (req, res) => send(res, 200, { user: null }, { 'Set-Cookie': cookie(req, '', 0) });
 
   return async function handleApi(req, res, pathname) {
     if (!db) return send(res, 503, { error: 'Accounts are not available on this server.' });
     const route = `${req.method} ${pathname}`;
     const write = req.method !== 'GET' && req.method !== 'HEAD';
     if (write && (!originAllowed(req) || req.headers['x-oc-request'] !== '1')) return send(res, 403, { error: 'Forbidden.' });
-    const bearer = /^Bearer ([\w-]{20,100})$/.exec(req.headers.authorization ?? '');
-    // App pages authenticate with the bearer token only, never a cookie (one more layer against
-    // cross-site use of a website session).
-    const token = bearer ? bearer[1] : appOrigin(req) ? null : readCookie(req, SESSION_COOKIE);
+    const token = readCookie(req, SESSION_COOKIE);
     const user = token ? accounts.userForToken(token) : null;
 
     switch (route) {
@@ -331,19 +322,6 @@ export function createApi({
         return send(res, 200, { url: `/auth/google/start?link=${ticket}` });
       }
 
-      // The app finishes "Continue with Google": its one-time code and PKCE verifier for a session.
-      case 'POST /api/auth/google/app': {
-        if (!google) return send(res, 503, { error: 'Google sign-in is not available.' });
-        if (!authBuckets.take(addressOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' }, { 'Retry-After': '60' });
-        const body = await readJson(req, AUTH_BODY_BYTES);
-        if (!body.ok) return send(res, body.status, { error: body.error });
-        const r = google.exchangeAppCode(body.value?.code, body.value?.verifier);
-        if (!r) return send(res, 400, { error: 'Google sign-in did not finish. Please try again.' });
-        const row = db.q.userById.get(r.userId);
-        boardCache.at = 0;
-        return send(res, 200, { user: { username: row.username }, token: r.token, created: r.isNew, suggestedName: r.isNew });
-      }
-
       // Show or hide your online status from your friends; email me when challenged while away.
       case 'POST /api/account/presence': {
         if (!user) return send(res, 401, { error: 'Sign in first.' });
@@ -443,9 +421,7 @@ export function createApi({
         if (!r.ok) return send(res, r.status, { error: r.error });
         if (!r.token) return send(res, 200, { user: { username: r.user.username }, emailAdded: true });
         boardCache.at = 0;
-        return isApp(req)
-          ? send(res, 200, { user: { username: r.user.username }, token: r.token, created: r.created, suggestedName: r.suggestedName })
-          : send(res, 200, { user: { username: r.user.username }, created: r.created, suggestedName: r.suggestedName }, { 'Set-Cookie': cookie(req, r.token, 30 * 86_400) });
+        return send(res, 200, { user: { username: r.user.username }, created: r.created, suggestedName: r.suggestedName }, { 'Set-Cookie': cookie(req, r.token, 30 * 86_400) });
       }
 
       case 'POST /api/account/name': {

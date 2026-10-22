@@ -30,7 +30,7 @@ async function befriend(a, b) {
 }
 
 // A live connection that records messages; next(type) waits for the next one of that type.
-function live({ cookie, token, origin = base } = {}) {
+function live({ cookie, origin = base } = {}) {
   const ws = new WebSocket(`${base.replace('http', 'ws')}/live`, { headers: { Origin: origin, ...(cookie ? { Cookie: cookie } : {}) } });
   const inbox = [];
   const waiters = [];
@@ -40,7 +40,6 @@ function live({ cookie, token, origin = base } = {}) {
     if (i >= 0) waiters.splice(i, 1)[0].resolve(m); else inbox.push(m);
   });
   const opened = new Promise((resolve, reject) => { ws.on('open', resolve); ws.on('unexpected-response', (_q, res) => reject(new Error(String(res.statusCode)))); });
-  if (token) opened.then(() => ws.send(JSON.stringify({ type: 'auth', token })));
   const next = (type, pred = () => true, ms = 2000) => {
     const match = (m) => m.type === type && pred(m);
     const i = inbox.findIndex(match);
@@ -74,15 +73,8 @@ test('a signed-in player gets a hello with their friends\' status; friends see e
   a.close();
 });
 
-test('the apps sign in with their token as the first message; no session, no channel', async () => {
+test('no session, no channel; another site cannot open one', async () => {
   const cal = await player('livecal');
-  const c = live({ token: cal.token, origin: 'capacitor://localhost' });
-  assert.equal((await c.next('hello')).you.username, 'livecal');
-  c.close();
-  const guest = live({});
-  await guest.opened;
-  guest.send({ type: 'auth', token: 'x'.repeat(43) });
-  assert.equal(await guest.closed, 4401, 'a bad token closes the channel');
   const slow = live({});
   await slow.opened;
   slow.send({ type: 'status', playing: true });
@@ -152,13 +144,4 @@ test('signing out closes the live channel at the next check; removed friends sto
   app.live.recheck();
   assert.equal(await i.closed, 4401);
   j.close();
-});
-
-test('a cookie from another site does not sign the channel in', async () => {
-  const kim = await player('livekim');
-  const k = live({ cookie: kim.cookie, origin: 'capacitor://localhost' }); // app origin: the cookie is ignored
-  await k.opened;
-  await assert.rejects(k.next('hello', () => true, 400), /no hello/, 'not signed in by the cookie');
-  k.send({ type: 'status', playing: true });
-  assert.equal(await k.closed, 4401, 'and anything but the token closes it');
 });

@@ -24,8 +24,7 @@ export const SECURITY_HEADERS = {
     "default-src 'self'",
     "script-src 'self' 'wasm-unsafe-eval'",
     "worker-src 'self'",
-    // CSP_CONNECT_EXTRA adds origins for test runs that serve "app" pages from a second origin.
-    `connect-src 'self'${process.env.CSP_CONNECT_EXTRA ? ` ${process.env.CSP_CONNECT_EXTRA}` : ''}`,
+    "connect-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",

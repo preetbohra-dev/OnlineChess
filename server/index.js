@@ -7,11 +7,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import fs from 'node:fs';
 import { createStaticHandler, SECURITY_HEADERS } from './static.js';
-import { appLinkFiles } from './app-links.js';
 import { createMailer, createMailLimits, loadAuthEnv, challengeEmail } from './mail.js';
 import { TIME_CONTROLS } from '../public/js/core/clock.js';
 import { createEmailAuth } from './email-auth.js';
-import { createGoogleAuth, APP_RETURN } from './google-auth.js';
+import { createGoogleAuth } from './google-auth.js';
 import { createFriends } from './friends.js';
 import { createLive, MAX_LIVE_MESSAGE_BYTES } from './live.js';
 import { createFriendChallenges } from './friend-challenges.js';
@@ -95,18 +94,14 @@ export function createAppServer({
   connectRate = { rate: 1, burst: 10 }, // new sockets per second per address
   unboundTimeoutMs = 30_000, // sockets that never create/join/resume are closed
   allowedHosts = (process.env.ALLOWED_HOSTS ?? '').split(',').map((x) => x.trim()).filter(Boolean),
-  // Pages of the iPhone (capacitor://localhost) and Android (https://localhost) apps, which call
-  // the API across origins with a bearer token.
-  appOrigins = (process.env.APP_ORIGINS ?? 'capacitor://localhost,https://localhost').split(',').map((x) => x.trim()).filter(Boolean),
   db = null, // accounts database (server/db.js); without it /api/ answers 503
   authRate,
   syncRate,
   push = null, // { publicKey } when daily reminders are running
   puzzles = undefined, // the weekly challenge's puzzle library (default: WEEKLY_POOL_FILE; null: none)
-  appLinks = appLinkFiles(), // /.well-known files that let site links open the apps (server/app-links.js)
   // Email sign-in (server/mail.js, server/email-auth.js): off unless a Resend key or MAIL=dry.
   mailer = createMailer({ apiKey: loadAuthEnv().RESEND_API_KEY ?? '' }),
-  publicOrigin = process.env.PUBLIC_ORIGIN || 'https://chess.solankidigitaldrafts.com', // links in emails
+  publicOrigin = process.env.PUBLIC_ORIGIN || 'https://onlinechess.preetbohra.com', // links in emails
   mailLimits = createMailLimits(),
   usernameSignup = false, // the old username + password sign-up (tests only; players sign up with email or Google)
   liveTiming = {}, // tests: { now, schedule } for the live channel's coalescing
@@ -118,8 +113,6 @@ export function createAppServer({
   const hosts = new Set([...LOCAL_HOSTS, ...allowedHosts]);
   const serveStatic = createStaticHandler(publicDir);
   const accounts = db ? createAccounts(db) : null;
-  const apps = new Set(appOrigins);
-  const fromApp = (req) => typeof req.headers.origin === 'string' && apps.has(req.headers.origin);
   const emailAuth = db && mailer.enabled ? createEmailAuth({ db, accounts, mailer, mailLimits, origin: publicOrigin }) : null;
   // The dry-run outbox holds real codes: readable only by test runs on an in-memory database.
   const inMemory = Boolean(db) && !(db.raw.location?.() ?? '');
@@ -145,7 +138,7 @@ export function createAppServer({
     live?.onFriendEvent(route, user, otherId, result);
     if (otherId && (route === 'POST /api/friends/remove' || route === 'POST /api/friends/decline')) challenges?.forget(user.id, otherId);
   };
-  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, challenges, onFriendEvent, onAccountDeleted: (userId) => challenges?.forget(userId), onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts) || fromApp(req), appOrigin: fromApp, isApp: (req) => fromApp(req) && req.headers['x-oc-client'] === 'app', clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
+  const api = createApi({ db, accounts, emailAuth, outbox, google, usernameSignup, friends, challenges, onFriendEvent, onAccountDeleted: (userId) => challenges?.forget(userId), onPresenceChange: live?.announce, originAllowed: (req) => originAllowed(req, hosts), clientAddress, ...(authRate ? { authRate } : {}), ...(syncRate ? { syncRate } : {}), push, puzzles: puzzles === undefined ? weeklyPool() : puzzles });
   // The Google round trip ends on the app's own pages: #/welcome signs in the page (and offers a
   // name to a new account) or explains what went wrong.
   const redirect = (res, location, cookies = []) => {
@@ -165,9 +158,7 @@ export function createAppServer({
         linkUserId = google.useLinkTicket(query.get('link'));
         if (!linkUserId || linkUserId !== sessionUser?.id) return redirect(res, '/#/welcome?error=expired');
       }
-      const appChallenge = query.get('app'); // started by an app (its PKCE challenge)
-      if (appChallenge !== null && (!/^[\w-]{43}$/.test(appChallenge) || linkUserId)) return redirect(res, '/#/welcome?error=bad'); // "Connect Google" is website only
-      const flow = google.start({ linkUserId, appChallenge });
+      const flow = google.start({ linkUserId });
       if (!flow) return redirect(res, '/#/welcome?error=busy');
       return redirect(res, flow.location, [google.stateCookie(flow.state, secure)]);
     }
@@ -175,18 +166,11 @@ export function createAppServer({
     const r = await google.callback(req, new URL(req.url, 'http://x').searchParams, sessionToken ? accounts.userForToken(sessionToken)?.id ?? null : null);
     const clear = google.clearStateCookie(secure);
     if (!r.ok) return redirect(res, `/#/welcome?error=${r.reason}`, [clear]);
-    if (r.app) return redirect(res, `${APP_RETURN}?code=${r.appCode}`, [clear]); // back into the app
     return redirect(res, r.created ? '/#/welcome?new=1' : '/#/welcome', [clear, sessionCookie(req, r.token, 30 * 86_400)]);
   }
   const fail = (res) => { if (!res.headersSent) res.writeHead(500); res.end(); };
   const server = http.createServer((req, res) => {
     const pathname = req.url.split(/[?#]/)[0];
-    // Public JSON for Android and Apple to fetch, deliberately before the API and its checks.
-    if (Object.hasOwn(appLinks, pathname) && (req.method === 'GET' || req.method === 'HEAD')) {
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600', 'X-Content-Type-Options': 'nosniff' });
-      res.end(req.method === 'HEAD' ? undefined : appLinks[pathname]);
-      return;
-    }
     if ((pathname === '/auth/google/start' || pathname === '/auth/google/callback') && req.method === 'GET') {
       handleGoogle(req, res, pathname).catch(() => fail(res));
       return;
@@ -194,21 +178,7 @@ export function createAppServer({
     if (pathname.startsWith('/api/')) {
       for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
       res.setHeader('Vary', 'Origin');
-      // CORS for the apps only: no cookies cross origins (no Allow-Credentials); they send a token.
-      if (fromApp(req)) {
-        res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
-        res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
-      }
-      if (req.method === 'OPTIONS') {
-        if (!fromApp(req)) { res.writeHead(403); res.end(); return; }
-        res.writeHead(204, {
-          'Access-Control-Allow-Methods': 'GET, POST, PUT',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-OC-Request, X-OC-Client',
-          'Access-Control-Max-Age': '600',
-        });
-        res.end();
-        return;
-      }
+      if (req.method === 'OPTIONS') { res.writeHead(403); res.end(); return; } // no cross-origin callers
       api(req, res, pathname).catch(() => fail(res));
       return;
     }
@@ -228,7 +198,7 @@ export function createAppServer({
     socket.on('error', () => {});
     const wsPath = req.url.split('?')[0];
     if (wsPath !== '/ws' && !(wsPath === '/live' && live)) return rejectUpgrade(socket, 404, 'Not Found');
-    if (!originAllowed(req, hosts) && !fromApp(req)) return rejectUpgrade(socket, 403, 'Forbidden');
+    if (!originAllowed(req, hosts)) return rejectUpgrade(socket, 403, 'Forbidden');
     const address = clientAddress(req);
     if (!attempts.has(address)) attempts.set(address, createTokenBucket(connectRate));
     if (!attempts.get(address).take()) return rejectUpgrade(socket, 429, 'Too Many Requests');
@@ -236,8 +206,8 @@ export function createAppServer({
     // Release the slot whenever this socket closes — including handshakes that never complete.
     socket.once('close', () => connections.release(address));
     if (wsPath === '/live') {
-      // The website's own pages sign in with the session cookie; the apps send their token.
-      const token = originAllowed(req, hosts) ? readCookie(req, SESSION_COOKIE) : null;
+      // Signed in with the session cookie.
+      const token = readCookie(req, SESSION_COOKIE);
       const sessionUserId = token ? accounts.userForToken(token)?.id ?? null : null;
       return liveWss.handleUpgrade(req, socket, head, (ws) => {
         ws.isAlive = true;

@@ -1,10 +1,8 @@
 // WebSocket client for online rooms: JSON messages, automatic reconnect with backoff.
 // Reconnects re-send `resume` through the onReconnect hook so the seat is reclaimed.
 import { createEmitter } from '../core/events.js';
-import { isNativeApp, SITE } from './platform.js';
 
 export function socketUrl() {
-  if (isNativeApp()) return `${SITE.replace(/^http/, 'ws')}/ws`; // the apps play through the public site
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 }
 
