@@ -4,8 +4,6 @@
 //               'live:notice' { kind, from, … }
 import { bus } from '../core/events.js';
 import { currentUser, refreshMe } from '../store/account.js';
-import { appToken } from './api.js';
-import { isNativeApp, SITE } from './platform.js';
 
 const presence = new Map(); // friend code -> { online, playing }
 let ws = null;
@@ -17,7 +15,6 @@ export const friendStatus = (code) => presence.get(code) ?? { online: false, pla
 export const liveInfo = () => me;
 
 function url() {
-  if (isNativeApp()) return `${SITE.replace(/^http/, 'ws')}/live`;
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/live`;
 }
 
@@ -32,10 +29,7 @@ function connect() {
   if (!currentUser() || ws) return;
   const socket = new WebSocket(url());
   ws = socket;
-  socket.onopen = () => {
-    attempts = 0;
-    if (isNativeApp()) socket.send(JSON.stringify({ type: 'auth', token: appToken() }));
-  };
+  socket.onopen = () => { attempts = 0; };
   socket.onmessage = (event) => {
     let m;
     try { m = JSON.parse(event.data); } catch { return; }

@@ -20,7 +20,7 @@ Play, learn and train chess in the browser — from your first game to grandmast
 
 All FIDE Laws of Chess are enforced. That includes castling restrictions, en passant and promotion. It also covers threefold, fivefold, fifty and seventy-five move draws, insufficient material, and the timeout rule. See [docs/RULES-IMPL.md](docs/RULES-IMPL.md).
 
-It installs as an app (home screen or desktop) and works offline, except online play. The offline copy is versioned from the files the server sees at start-up, so restart the server after deploying new files.
+There is no store app: it installs from the website itself (home screen or desktop) and works offline, except online play. The offline copy is versioned from the files the server sees at start-up, so restart the server after deploying new files.
 
 Every game shows the opening being played. Progress is stored in the browser; an optional account (username and password) keeps it safe and syncs it across devices. XP and achievements are a personal motivator rather than a verified rating. Only games from the standard starting position count toward records.
 
@@ -48,9 +48,6 @@ Environment variables:
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
 | `AUTH_BURST`, `SYNC_BURST` | `10`, `5` | Burst sizes of the per-address sign-in and per-account sync/report limits. Raised only for test runs, where every browser shares one address. |
-| `APP_ORIGINS` | `capacitor://localhost,https://localhost` | Page origins of the iPhone and Android apps, allowed to call the API across origins with a bearer token. |
-| `CSP_CONNECT_EXTRA` | (none) | Test runs only: extra `connect-src` origins, for serving "app" pages from a second origin. Never set it on the live server. |
-| `ANDROID_CERT_SHA256`, `APPLE_TEAM_ID` | (none) | Let links to the site open the apps (`/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`); see docs/APPS.md. |
 | `WEEKLY_POOL_FILE` | `~/.jodhpur-studio/data/weekly-puzzles.json` | The weekly challenge's private puzzle pool (see docs/DEPLOY.md). |
 
 Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.

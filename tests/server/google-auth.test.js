@@ -167,36 +167,6 @@ test('a player links only one Google account', async () => {
   assert.equal((await viaGoogle({ cookie: session, link: true })).location, '/#/welcome?error=taken');
 });
 
-test('inside the app: back to the app with a one-time code that only the app\'s verifier redeems', async () => {
-  const verifier = crypto.randomBytes(32).toString('base64url');
-  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-  nextToken = (nonce) => idToken(claimsFor(nonce, { sub: 'app-1', email: 'appy@gmail.com' }));
-  const start = await fetch(`${base}/auth/google/start?app=${challenge}`, { redirect: 'manual' });
-  lastNonce = new URL(start.headers.get('location')).searchParams.get('nonce');
-  const state = new URL(start.headers.get('location')).searchParams.get('state');
-  const back = await fetch(`${base}/auth/google/callback?code=c&state=${state}`, { redirect: 'manual', headers: { Cookie: start.headers.get('set-cookie').split(';')[0] } });
-  const to = back.headers.get('location');
-  assert.match(to, /^com\.solankidigitaldrafts\.chess:\/\/auth\?code=[\w-]{43}$/);
-  assert.equal(back.headers.getSetCookie().some((c) => c.startsWith('oc_session=')), false, 'no website session for an app sign-in');
-  const code = new URL(to).searchParams.get('code');
-  const exchange = (body) => fetch(`${base}/api/auth/google/app`, { method: 'POST', headers: { Origin: 'capacitor://localhost', 'X-OC-Request': '1', 'X-OC-Client': 'app', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const stolen = await exchange({ code, verifier: crypto.randomBytes(32).toString('base64url') });
-  assert.equal(stolen.status, 400, 'someone else\'s verifier');
-  assert.equal((await exchange({ code, verifier })).status, 400, 'the code had one try');
-
-  // Again, this time redeemed by the app itself.
-  const start2 = await fetch(`${base}/auth/google/start?app=${challenge}`, { redirect: 'manual' });
-  lastNonce = new URL(start2.headers.get('location')).searchParams.get('nonce');
-  const back2 = await fetch(`${base}/auth/google/callback?code=c&state=${new URL(start2.headers.get('location')).searchParams.get('state')}`, { redirect: 'manual', headers: { Cookie: start2.headers.get('set-cookie').split(';')[0] } });
-  const ok = await exchange({ code: new URL(back2.headers.get('location')).searchParams.get('code'), verifier });
-  assert.equal(ok.status, 200);
-  const json = await ok.json();
-  assert.match(json.token, /^[\w-]{40,}$/);
-  assert.equal(json.created, false, 'the account was made on the first, stolen try');
-  assert.equal((await fetch(`${base}/api/account`, { headers: { Authorization: `Bearer ${json.token}`, Origin: 'capacitor://localhost' } }).then((r) => r.json())).email, 'appy@gmail.com');
-  assert.equal((await fetch(`${base}/auth/google/start?app=short`, { redirect: 'manual' })).headers.get('location'), '/#/welcome?error=bad');
-});
-
 test('ID token checks: issuer, audience, expiry, nonce, algorithm', () => {
   const keys = [JWK];
   const ok = (claims, opts = {}) => verifyIdToken(idToken(claims), { keys, clientId: CLIENT_ID, nonce: 'n', ...opts });

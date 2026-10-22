@@ -14,9 +14,7 @@
     "test:e2e": "playwright test --project=desktop && playwright test --project=mobile",
     "vendor": "node scripts/vendor.mjs",
     "postinstall": "node scripts/vendor.mjs",
-    "puzzles": "node scripts/puzzles.mjs",
-    "app:www": "node scripts/app-www.mjs",
-    "app:sync": "node scripts/app-www.mjs && cap sync"
+    "puzzles": "node scripts/puzzles.mjs"
   },
   "dependencies": {
     "chess.js": "1.4.0",
@@ -25,16 +23,6 @@
     "ws": "8.21.3"
   },
   "devDependencies": {
-    "@capacitor/android": "8.5.2",
-    "@capacitor/app": "8.1.1",
-    "@capacitor/browser": "8.0.4",
-    "@capacitor/cli": "8.5.2",
-    "@capacitor/core": "8.5.2",
-    "@capacitor/haptics": "8.0.2",
-    "@capacitor/ios": "8.5.2",
-    "@capacitor/share": "8.0.2",
-    "@capacitor/splash-screen": "8.0.2",
-    "@capacitor/status-bar": "8.0.3",
     "@playwright/test": "1.56.1",
     "stockfish": "19.0.0"
   }
