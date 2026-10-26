@@ -40,8 +40,9 @@ function Write-Status($state, $detail = '') {
 
 # The weekly reboot (TallyDocumentTranslator\scripts\weekly-reboot.ps1) writes an
 # expiring marker before it shuts things down; stand down so nothing restarts mid-shutdown.
+# A marker from before the last boot is ignored: the reboot it announced is already over.
 $rebootMarker = 'C:\Users\preet\Desktop\Repositories\TallyDocumentTranslator\logs\reboot.pending'
-if (Test-Path $rebootMarker) {
+if ((Test-Path $rebootMarker) -and (Get-Item $rebootMarker).LastWriteTime -gt (Get-CimInstance Win32_OperatingSystem).LastBootUpTime) {
   try { $until = [datetime]::Parse((Get-Content $rebootMarker -Raw).Trim()) } catch { $until = Get-Date }
   if ((Get-Date) -lt $until) { Write-Status 'WAITING' "reboot pending until $until"; exit 0 }
 }
