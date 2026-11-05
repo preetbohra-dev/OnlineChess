@@ -122,7 +122,7 @@ test('the live pool is read from outside the repository', () => {
   if (process.env.WEEKLY_POOL_FILE) return; // overridden (e.g. the e2e server uses the fixture)
   const repo = path.resolve(new URL('../..', import.meta.url).pathname);
   assert.equal(path.resolve(WEEKLY_POOL_FILE).startsWith(repo + path.sep), false, WEEKLY_POOL_FILE);
-  assert.equal(WEEKLY_POOL_FILE, path.join(os.homedir(), '.jodhpur-studio', 'data', 'weekly-puzzles.json'));
+  assert.equal(WEEKLY_POOL_FILE, path.join(os.homedir(), '.sites', 'onlinechess', 'data', 'weekly-puzzles.json'));
 });
 
 test('a week keeps the puzzles it started with, even if the pool changes', async () => {

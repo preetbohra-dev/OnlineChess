@@ -140,7 +140,7 @@ Client-only slices first (they work for guests), then the server slices.
 ### Slice 18 — Accounts, SQLite and cloud sync (security review)
 
 - `node:sqlite` database with tables `users`, `sessions`, `profiles` and `games`, created by
-  migrations at start-up. The file lives in `~/.jodhpur-studio/data/chess.db`, with a nightly
+  migrations at start-up. The file lives in `~/.sites/onlinechess/data/chess.db`, with a nightly
   `VACUUM INTO` backup that keeps 7.
 - API:
   - `POST /api/register`
@@ -171,7 +171,7 @@ Client-only slices first (they work for guests), then the server slices.
 
 ### Slice 19 — Web Push reminders (security review)
 
-- VAPID keys are generated once and stored outside the repo (`~/.jodhpur-studio/secrets/`).
+- VAPID keys are generated once and stored outside the repo (`~/.sites/onlinechess/secrets/`).
 - Opt-in from the profile or after solving a daily. The subscription, with the time zone and a
   preferred hour (default 19:00), is stored for the account.
 - A scheduler in the server checks every 10 minutes and sends "Your daily puzzle is waiting

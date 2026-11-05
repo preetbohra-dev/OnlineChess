@@ -87,8 +87,8 @@ export function scoreGame(slot, moves) {
 // The challenge's own puzzles: a separate sample of the Lichess database that is never served to
 // browsers (the public library at public/data/puzzles.json is, so its answers are easy to look up).
 // It lives outside the repository, next to the accounts database, because the source is public:
-//   node scripts/puzzles.mjs --slot 2 --per-band 50 --out ~/.jodhpur-studio/data/weekly-puzzles.json
-export const WEEKLY_POOL_FILE = process.env.WEEKLY_POOL_FILE || path.join(os.homedir(), '.jodhpur-studio', 'data', 'weekly-puzzles.json');
+//   node scripts/puzzles.mjs --slot 2 --per-band 50 --out ~/.sites/onlinechess/data/weekly-puzzles.json
+export const WEEKLY_POOL_FILE = process.env.WEEKLY_POOL_FILE || path.join(os.homedir(), '.sites', 'onlinechess', 'data', 'weekly-puzzles.json');
 
 const libraries = new Map();
 export function loadPuzzleLibrary(file = WEEKLY_POOL_FILE) {

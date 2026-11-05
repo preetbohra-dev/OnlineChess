@@ -290,7 +290,7 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
   - Errors show in `account-error`. When signed in: `account-user`, `account-synced`, `btn-sync`, `btn-logout`.
   - Usernames: 3–20 letters, digits, `-` or `_`, unique ignoring case. Passwords: at least 10 characters, not a common password, not containing the username.
 - **Server** (`server/db.js`, `server/auth.js`, `server/api.js`):
-  - SQLite through `node:sqlite`, at `DB_PATH` (default `~/.jodhpur-studio/data/chess.db`; `:memory:` for tests; `off` disables accounts). A daily `VACUUM INTO` backup keeps seven.
+  - SQLite through `node:sqlite`, at `DB_PATH` (default `~/.sites/onlinechess/data/chess.db`; `:memory:` for tests; `off` disables accounts). A daily `VACUUM INTO` backup keeps seven.
   - Passwords are scrypt-hashed. The session is a random 256-bit token in an HttpOnly, SameSite=Lax, Secure cookie (not Secure on localhost), stored only as a hash. Sessions last 30 days, at most 10 per user.
   - API: `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/me`, `GET/PUT /api/state`.
     - Writes need a same-origin `Origin` and the `X-OC-Request: 1` header.
@@ -310,7 +310,7 @@ The evaluator scores **only the slices built so far**. Criteria for unbuilt slic
 - The server checks every 10 minutes and sends one notification per day, after the chosen local hour, only when the synced profile shows today's puzzle unsolved. The text mentions a live streak. Expired subscriptions (404/410) are deleted.
 - Only https endpoints of the browsers' push services are accepted (FCM, Mozilla, Apple, Windows), so the server never sends requests elsewhere.
 - The service worker shows the notification; tapping it opens `#/daily`.
-- VAPID keys live outside the repository (`VAPID_FILE`, default `~/.jodhpur-studio/secrets/chess-vapid.json`, mode 600). `PUSH=off` disables reminders; `PUSH=dry` (tests) sends nothing.
+- VAPID keys live outside the repository (`VAPID_FILE`, default `~/.sites/onlinechess/secrets/chess-vapid.json`, mode 600). `PUSH=off` disables reminders; `PUSH=dry` (tests) sends nothing.
 
 ### Slice 20: weekly challenge and leaderboard
 

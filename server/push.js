@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import webpush from 'web-push';
 
-export const DEFAULT_VAPID_FILE = path.join(os.homedir(), '.jodhpur-studio', 'secrets', 'chess-vapid.json');
+export const DEFAULT_VAPID_FILE = path.join(os.homedir(), '.sites', 'onlinechess', 'secrets', 'chess-vapid.json');
 export const MAX_SUBSCRIPTIONS_PER_USER = 5;
 export const MAX_SUBSCRIPTIONS = 5000; // for the whole server
 const MAX_FAILURES = 3; // consecutive failed days before a subscription is dropped

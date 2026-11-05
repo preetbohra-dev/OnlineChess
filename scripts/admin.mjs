@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Account administration for the accounts database (DB_PATH, default ~/.jodhpur-studio/data/chess.db).
+// Account administration for the accounts database (DB_PATH, default ~/.sites/onlinechess/data/chess.db).
 //   node scripts/admin.mjs reset-password <username>   (reads the new password from stdin)
 //   node scripts/admin.mjs delete-user <username>
 //   node scripts/admin.mjs fix-week <pool.json>     (stores this week's challenge set from that pool, if

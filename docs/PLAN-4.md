@@ -63,7 +63,7 @@ The user dropped Microsoft sign-in on 2026-10-13: email or Google, and Apple lat
   privacy policy URL), and create a "Web application" OAuth client with the redirect URI
   `https://chess.solankidigitaldrafts.com/auth/google/callback`.
 - **Store the keys:** put the Resend key and the Google client ID and secret into
-  `~/.jodhpur-studio/secrets/` with a one-line command Claude provides. Claude cannot write
+  `~/.sites/onlinechess/secrets/` with a one-line command Claude provides. Claude cannot write
   secrets.
 
 ## 6. Order
