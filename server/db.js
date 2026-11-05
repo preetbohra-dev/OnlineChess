@@ -1,12 +1,12 @@
 // Accounts database: SQLite through Node's built-in node:sqlite (no extra dependency).
-// The file lives outside the repository (DB_PATH, default ~/.jodhpur-studio/data/chess.db);
+// The file lives outside the repository (DB_PATH, default ~/.sites/onlinechess/data/chess.db);
 // tests use ':memory:'. Migrations run at open, tracked with PRAGMA user_version.
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-export const DEFAULT_DB_PATH = path.join(os.homedir(), '.jodhpur-studio', 'data', 'chess.db');
+export const DEFAULT_DB_PATH = path.join(os.homedir(), '.sites', 'onlinechess', 'data', 'chess.db');
 
 const MIGRATIONS = [
   // 1: users, sessions, synced state

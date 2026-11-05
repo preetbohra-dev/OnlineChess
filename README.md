@@ -41,14 +41,14 @@ Environment variables:
 |----------|---------|---------|
 | `PORT` | `3200` | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address; `0.0.0.0` allows other devices on your network |
-| `DB_PATH` | `~/.jodhpur-studio/data/chess.db` | Accounts database (SQLite). `off` disables accounts; `:memory:` keeps them in memory (tests). A daily backup goes to `backups/` beside it. |
+| `DB_PATH` | `~/.sites/onlinechess/data/chess.db` | Accounts database (SQLite). `off` disables accounts; `:memory:` keeps them in memory (tests). A daily backup goes to `backups/` beside it. |
 | `PUSH` | (on) | Daily reminders over Web Push (needs accounts). `off` disables them; `dry` sends nothing (tests). |
-| `VAPID_FILE` | `~/.jodhpur-studio/secrets/chess-vapid.json` | Web Push keys, created on first start (mode 600). |
+| `VAPID_FILE` | `~/.sites/onlinechess/secrets/chess-vapid.json` | Web Push keys, created on first start (mode 600). |
 | `VAPID_SUBJECT` | `https://<first ALLOWED_HOSTS>` | Contact for push services (`mailto:` or an https URL). |
 | `ALLOWED_HOSTS` | (none) | Comma-separated host names, besides localhost, allowed to open online-play WebSockets. Set it to your public domain when deploying. |
 | `ROOMS_PER_ADDRESS`, `ROOM_CREATES_PER_HOUR`, `WS_CONNECT_BURST`, `WS_CONNECTIONS_PER_ADDRESS` | see `server/index.js` | Abuse limits for online play |
 | `AUTH_BURST`, `SYNC_BURST` | `10`, `5` | Burst sizes of the per-address sign-in and per-account sync/report limits. Raised only for test runs, where every browser shares one address. |
-| `WEEKLY_POOL_FILE` | `~/.jodhpur-studio/data/weekly-puzzles.json` | The weekly challenge's private puzzle pool (see docs/DEPLOY.md). |
+| `WEEKLY_POOL_FILE` | `~/.sites/onlinechess/data/weekly-puzzles.json` | The weekly challenge's private puzzle pool (see docs/DEPLOY.md). |
 
 Deployment notes: [docs/DEPLOY.md](docs/DEPLOY.md). Account administration: `node scripts/admin.mjs reset-password <user>` or `delete-user <user>`.
 

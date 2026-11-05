@@ -7,27 +7,27 @@
   (register it once with .\scripts\windows\register-task.ps1). Safe to run by
   hand: a running server is left alone and nothing is stopped.
 
-    Live checkout   %USERPROFILE%\.jodhpur-studio\apps\onlinechess, a detached
+    Live checkout   %USERPROFILE%\.sites\onlinechess\app, a detached
                     git worktree of main (see docs/DEPLOY.md)
     Server          node server/index.js on 127.0.0.1:3200
     Public address  https://onlinechess.preetbohra.com, through the shared
                     Cloudflare tunnel "applyai" (~/.cloudflared/config.yml).
                     MemoryTimeline's supervisor keeps that tunnel running.
 
-  Status: %USERPROFILE%\.jodhpur-studio\logs\chess\status.txt
-  Events (started or failed): %USERPROFILE%\.jodhpur-studio\logs\chess\supervisor.log
+  Status: %USERPROFILE%\.sites\onlinechess\logs\status.txt
+  Events (started or failed): %USERPROFILE%\.sites\onlinechess\logs\supervisor.log
   Server output: chess.log and chess.err.log in the same folder.
 #>
 
 [CmdletBinding()]
 param(
-  [string]$Live = (Join-Path $env:USERPROFILE '.jodhpur-studio\apps\onlinechess'),
+  [string]$Live = (Join-Path $env:USERPROFILE '.sites\onlinechess\app'),
   [int]$Port = 3200,
   [string]$PublicHost = 'onlinechess.preetbohra.com'
 )
 
 $ErrorActionPreference = 'Stop'
-$logs = Join-Path $env:USERPROFILE '.jodhpur-studio\logs\chess'
+$logs = Join-Path $env:USERPROFILE '.sites\onlinechess\logs'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 function Write-Status($state, $detail = '') {

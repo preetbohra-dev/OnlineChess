@@ -50,7 +50,7 @@ lessons, openings, review), and passing both stores' review on the first or seco
 ### Slice 21 — weekly pool out of the repo
 
 - The weekly challenge reads its pool from `WEEKLY_POOL_FILE` (default
-  `~/.jodhpur-studio/data/weekly-puzzles.json`), outside the repo.
+  `~/.sites/onlinechess/data/weekly-puzzles.json`), outside the repo.
 - A fresh pool is generated from a new disjoint sample (`scripts/puzzles.mjs --slot 2`), so the
   old pool in git history no longer matters and history needs no rewrite. Already-started weeks
   keep working: the current week is recomputed from the new pool only from the next Monday.
@@ -102,13 +102,13 @@ lessons, openings, review), and passing both stores' review on the first or seco
   subscriptions.
 - The reminder scheduler sends through APNs (HTTP/2 with a `.p8` token key, `node:http2`, no new
   dependency) and FCM HTTP v1 (service-account JWT signed with `node:crypto`). Keys live in
-  `~/.jodhpur-studio/secrets/`, never in the repo. Dry-run mode for tests, as with Web Push.
+  `~/.sites/onlinechess/secrets/`, never in the repo. Dry-run mode for tests, as with Web Push.
 - Needs from the user: an APNs key from the Apple developer account and a Firebase project for
   FCM.
 
 ### Slice 26 — store packaging
 
-- Android: an upload keystore in `~/.jodhpur-studio/secrets/` (backed up — losing it blocks
+- Android: an upload keystore in `~/.sites/onlinechess/secrets/` (backed up — losing it blocks
   updates), a signed `.aab` with Play App Signing.
 - iOS: archive and upload to App Store Connect with `xcodebuild` and the user's team.
 - Screenshots for each required device size, generated with Playwright from the real app pages.

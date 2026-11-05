@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createBucketMap, createTokenBucket } from './rate-limit.js';
 
-export const DEFAULT_AUTH_ENV = path.join(os.homedir(), '.jodhpur-studio', 'secrets', 'chess-auth.env');
+export const DEFAULT_AUTH_ENV = path.join(os.homedir(), '.sites', 'onlinechess', 'secrets', 'chess-auth.env');
 export const FROM = 'OnlineChess <no-reply@chess.solankidigitaldrafts.com>';
 export const REPLY_TO = 'preetbohra30@gmail.com'; // the support contact, as on the support page
 const RESEND_URL = 'https://api.resend.com/emails';
