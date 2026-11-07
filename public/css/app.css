@@ -79,6 +79,9 @@ body { padding-bottom: var(--inset-bottom); }
 .topnav a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 999px; font-weight: 600; }
 .topnav a:hover, .topnav a.active { color: var(--text); background: var(--surface-2); }
 .topnav { align-items: center; }
+.site-foot { text-align: center; padding: 8px 16px calc(24px + env(safe-area-inset-bottom)); font-size: 0.875rem; }
+.site-foot a { color: var(--muted); text-decoration: none; }
+.site-foot a:hover { color: var(--text); }
 .icon-btn { font-size: 1.2rem; line-height: 1; color: var(--muted); background: none; border: 0; border-radius: 999px; padding: 6px 10px; cursor: pointer; }
 .icon-btn:hover { color: var(--text); background: var(--surface-2); }
 main:focus { outline: none; }
